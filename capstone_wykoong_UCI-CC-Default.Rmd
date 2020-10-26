@@ -1,0 +1,1869 @@
+---
+title: 'UCI Credit Card Default'
+subtitle: 'HarvardX (PH125.9x) - Data Science: Capstone'
+author: "Wayne Koong Wah Yan"
+email: "wykoong@gmail.com"
+date: "10/26/2020"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(caret)
+library(data.table)
+library(formattable)
+library(corrplot)
+library(randomForest)
+library(stringr)
+library(summarytools)
+library(xgboost) # for xgboost
+
+options(dplyr.summarise.inform = FALSE) #suppress summarise info
+options(digits = 4)   #default to 5 decimal points
+options(warn = -1)    #suppress warnings
+options(scipen = 999) #always use regular numbers
+#options(qwraps2_markup = "markdown")
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning=FALSE, message=FALSE) #Suppress warning & message
+knitr::opts_chunk$set(comment = NA)
+```
+
+
+`r ###################################################################################`
+# 1 Abstract
+## 1.1 Purpose of this project
+This project is the final report for my completion of HarvardX Data Science - Capstone course.
+
+## 1.2 Objective of this project
+The objective of this project is to apply the knowledge acquired throughout the Data Science courses. I am applying machine learning techniques toward the UCI Credit Card Default dataset obtained from kaggle.com.
+
+## 1.3 "Too many cooks spoil the broth"
+Interesting enough, while executing machine learning algorithms on the training dataset, evaluating using test dataset, I notice f-score and almost all other metrics value reduced if all variables in used. Better F-score achieved by using only selected variables. 
+
+Also another interesting finding, by including **LIMIT_BAL** and excluding all other **BILL_** and **PAY_** monetary variables, I have the best accuracy and f-score.
+
+
+
+
+\newpage
+`r ###################################################################################`
+# 2 Introduction
+Credit Card has becomes a necessity of lifestyle. Many financial institutions are relying on the credit card usage and payment history as a way to predict credit score for a person financial worthiness. For most financial institutions, Credit Card is the biggest contribution to the revenue and income, eclipse revenue from other businesses. Credit Card business, however, is high risk and unsecured, which sometimes, causing confusion within the financial institution: a bank branch manager has the authority to approve a 1,000,000 loan, but has no say on the issue of credit card with 100,000 credit limit.
+
+The income from late payment are very fat, starting from 16% on outstanding amount. This reward is  parallel with risk associated. Outstanding and default are closely monitored. The probability of default is the key assessment criteria during card issuance, thus, relying on historical dataset.
+
+## 2.1 Recommendation Systems
+Recommendation systems have been a big in the IT businesses since 80's. In 80's, it's known as Decision Support System, powered by defined/known algorithms suggesting probability of an event, whether categorical or continuous for management decision. Today, the Recommendation Systems are no longer solely relying on defined/known algorithms, but on continuous learning using machine learning and deep learning. The new form of Recommendation systems are made possible by the available of more powerful machines, with increased capability, scalability and affordability that allows application in wider scale.
+
+Recommendation Systems is highly rely on given historical dataset that it's used to "train" the model. It learns from the past, and predict the future output either in categorical or continuous outcome. The output is typically in a predfiend scale, e.g. from 0 to 1, of which is subsequently interpreted into rating or preferences of choice, e.g. rating from 0 to 5, or choice of Yes or No, etc.
+
+## 2.2 The UCI Credit Card Default Dataset
+The UCI Credit Card Default dataset contains credit card clients billing and payment status of an organisation from Taiwan. This dataset contains information on default payments, demographic factors, credit data, history of payment, and bill statements for period from **April 2005 to September 2005**.
+
+## 2.3 Goal
+The aim of this project is to find the best prediction algorithm which can help financial institution in predicting a likelihood of a client default payment. I explored various machine learning algorithms, like linear regression, logistic regression, local regression (loess), random forest, gradient boost etc. The **Generalized Linear Model** is found to be the highest among all with **F-score value of 89.59%**.
+
+
+\newpage
+## 2.4 Key steps
+To ensure a standardized structural approach in organising and performing the analysis and prediction, I chosen and followed OSEMN Framework process.
+
+```{r, echo=FALSE, message=F, warning=F, fig.align="center"}
+# Define variable containing url
+url <- "https://raw.githubusercontent.com/wykoong/PH125.9x-Capstone-UCI_CreditCard_DEFAULT/master/img/OSEMN_Framework.png"
+library(png)
+library(RCurl)
+url_cont <- getURLContent(url)
+img <- readPNG(url_cont)
+rimg <- as.raster(img) # raster multilayer object
+r <- nrow(rimg) / ncol(rimg) # image ratio
+plot(rimg)
+
+rm(url,url_cont,img,rimg,r)
+```
+
+OSEMN, the data science taxonomy (proposed by Hilary Mason and Chris Wiggins) or Snice taxonomy is the chronological order of Obtain, Scrub, Explore, Model, and iNterpret. This is a standardized process governs steps taken, ensuring probability of accurate analysis whilst allows steps to be backtrack-able and re-executable.
+
+OSEMN Framework process is consists of following 5 steps:
+
++ O - Obtaining our data
++ S - Scrubbing / Cleaning our data
++ E - Exploring / Visualizing our data will allow us to find patterns and trends
++ M - Modeling our data will give us our predictive power as a wizard
++ N - Interpreting our data
+
+
+### 2.4.1 Step1 Obtain Data
+
+Obtain data means identifying and acquiring the needed and correct dataset. This step is very important as a flawed dataset will miss-led and impact the probability of getting accurate prediction. After the complete dataset is obtained or downloaded, the data should be parsed and prepared in a form that is processable.
+
+### 2.4.2 Step2 Scrub Data
+
+Scrub data means to clean or filter unwanted "noise" from dataset. Depends on the quality of dataset, sometime a massive data cleansing may be required. This step needs to be executed properly and data should be explored from all angles, as "garbage in, garbage out" philosophy, not clean data with irrelevant or incorrectly parse data may rendered analyzed result null.
+
+### 2.4.3 Step3 Explore Data
+
+Explore data means examine data, or making sense of the dataset. This step involves careful data properties, e.g. data cardinally, relationship, factors, and data types like numerical, categorical, ordinal, nominal, etc. inspections.
+
+Descriptive statistics are always compute to extract features and to test significant variables and their correlation. These extracted info are normally present in visualisation (e.g. chart) for patterns and trends identification.
+
+### 2.4.4 Step4 Model Data
+
+Model data is the step where models are selected, applied, tuned and executed to get the required outcome. This is the key step that resulted whether we able to produce a correct and high probability prediction, or a biased or wrong analysis.  
+
+Here, dimension of dataset is scrutinized and reduced if necessary, selecting the relevant features and value that contributes to the prediction of results. Various models are select and train:
+
++ logistic regressions to perform classification to differentiate value,
++ linear regression to forecast value,
++ clustering by grouping data for better understanding of the logic,
++ etc.
+
+In short, regressions and predictions are typically use for forecasting future values, whilst classifications are to identify, and clustering to group values.
+
+### 2.4.5 Step5 Interpreting Data
+
+Interpreting Data means interpreting models and results, and presenting them in a human readable format. There is no standard format on how outcome should be presented. It can be simplified charts as those in newspaper, or series of highly technical charts  for technical reader. A well-structured, clear and with actionable story report with relevant visual and data helps readers read and understands.
+
+Regardless how good all other steps are performed, failure to present and communicate to the reader clearly & precisely means the efforts may not be appreciated (a.k.a getting continuous support, buy-in & funding).
+
+
+\newpage
+`r ###################################################################################`
+# 3 Metrics & Methods
+## 3.1 Metrics
+Several metrics are studied to evaluate the best to present my prediction output. As the output is categorical, Confusion Matrix forms the base of the evaluation.
+
+### 3.1.1 Confusion Matrix
+Confusion matrix, or error matrix, is a table with 4 values that presents the outcome of prediction against actual result. It gives a visualisation of the performance of an algorithm, with each row of the matrix represents the predicted class while each column represents the actual class.
+
++ True positive (TP): Positive outcome correctly identified as positive,
++ False positive (FP): Positive outcome incorrectly identified as negative,
++ True negative (TN): Negative outcome correctly identified as negative, and
++ False negative (FN): Negative outcome incorrectly identified as positive.
+
+``` {r confusion_matrix_table, echo=FALSE}
+tmp_cm_table <- matrix(c("TP","FP","FN","TN"),2,2)
+rownames(tmp_cm_table) <- c("Predicted Positive(1)","Predicted Negative(0)")
+colnames(tmp_cm_table) <- c("Actual Positive(1)","Actual Negative(0)")
+tmp_cm_table %>% knitr::kable(caption="CONFUSION MATRIX")
+rm(tmp_cm_table)
+```
+
+
+### 3.1.2 Accuracy
+Accuracy is defined as how close the predicted positive outcome over actual positive outcome, and the predicted negative outcome over the actual negative outcome:
+$$Accuracy = {TP + TN \over N}$$
+when N is total populations.
+
+
+### 3.1.3 Sensitivity/Recall
+sensitivity, or Recall is defined as the ability of an algorithm to predict a positive outcome when the actual outcome is positive: $\hat Y = 1$ when $Y = 1$. Thus
+
+$$High \ Sensitivity: \ Y = 1 ==> \hat Y = 1 $$
+$$Sensitivity = {TP\over (TP +FN)}$$
+
+
+### 3.1.4 Specificity/Precision
+Specificity, or Precision is defined as the ability of an algorithm to not predict a positive $\hat Y = 0$ when the
+actual outcome is not a positive $Y = 0$. Thus
+
+$$High \ Specificity: \ Y = 0 ==> \hat Y = 0 $$
+$$Specificity = {TN\over (TN +FP)}$$
+Specificity also can defined as the proportion of positive calls that are actually positive
+
+$$High \ Specificity: \ \hat Y = 1 ==> hat Y = 1 $$
+$$Specificity = {TP\over (TP +FP)}$$
+
+
+### 3.1.5 Prevalence
+Prevalence is the number of actual positive at a given time, vs the actual negative. Thus, when $N$ is the total population:
+
+$$Prevalence \ (Negative): \ {Y = 1 \over N} $$
+$$Prevalence \ (Negative): \ {Y = 0 \over N} $$
+ 
+
+Due to imbalance prevalence toward a class, an overall high accuracy is possible despite relatively low sensitivity or low specificity. Thus, Balanced Accuracy and F-Score should be examined on imbalance prevalence case. 
+
+
+<!-- ### Balanced Accuracy -->
+<!-- Balanced accuracy useful when the classes (prevalence) are imbalanced, i.e. one of the two classes appears significantly more often than the other, as what observed in UCI Credit Card Default probability. The value is the mean of sensitivity and specificity: -->
+
+<!-- $$Balanced \ Accuracy \ = \ {{Sensitivity + Specificity}\over 2}$$ -->
+
+### 3.1.6 F-Score
+F-score or F-measure is a measure of a test's accuracy. It is the harmonic mean of the precision and recall. The highest possible value of an F-score is 1, indicating perfect precision and recall, and the lowest possible value is 0, if either the precision or the recall is zero. The F1 score is also known as the Sørensen–Dice coefficient or Dice similarity coefficient (DSC). The formula of F-Score, $F_1$ is:
+
+$$F_1 = {2 \times{{Sensitivity \times Specificity}\over {Sensitivity + Specificity}} }$$
+
+
+
+\newpage
+## 3.2 Method
+Method selections is a major criteria in my report. Many methods are available, from caret package, and other packages. I refer to teaching materials, and some browsing, selected following methods to train and predict the UCI Credit Card Default. Selected methods are:
+
++ Generalized Linear Model, 
++ Linear Model,
++ Generalized Additive Model using LOESS
++ K-nearest Neighbors
++ K-Means Clustering
++ Random Forest
++ Gradient Boosting 
+
+
+### 3.2.1 Generalized Linear Model
+Generalized linear model (GLM) is a flexible generalization of ordinary linear regression that allows for response variables that have error distribution models other than a normal distribution. The GLM generalizes linear regression by allowing the linear model to be related to the response variable via a link function and by allowing the magnitude of the variance of each measurement to be a function of its predicted value.
+
+
+In a generalized linear model (GLM), each outcome $Y$ of the dependent variables is assumed to be generated from a particular distribution in an exponential family, a large class of probability distributions that includes the normal, binomial, Poisson and gamma distributions, among others. The mean, $\mu$, of the distribution depends on the independent variables, $X$, through:
+
+$$E(Y) = \mu = g^{-1}(X\beta)$$
+
+where $E(Y)$ is the expected value of $Y$; $X\beta$ is the linear predictor, a linear combination of unknown parameters $\beta$; $g$ is the link function.
+
+In this framework, the variance is typically a function, V, of the mean:
+$$Var(Y)=V(\mu)=V(g^{-1}(X\beta)$$
+
+It is convenient if $V$ follows from an exponential family of distributions, but it may simply be that the variance is a function of the predicted value. The unknown parameters, $\beta$, are typically estimated with maximum likelihood, maximum quasi-likelihood, or Bayesian techniques.
+
+
+### 3.2.2 Linear Model
+LInear Model, or linear regression model, is a linear approach to modeling the relationship between a scalar response (or dependent variable) and one or more explanatory variables (or independent variables). The relationships are modeled using linear predictor functions whose unknown model parameters are estimated from the data, calculating the conditional mean of the response given the values of the explanatory variables (or predictors). Linear regression focuses on the conditional probability distribution of the response given the values of the predictors, rather than on the joint probability distribution of all of these variables.
+
+Given a data set $\{y_i, x_{i1},...,x_{iy} \}^n_{i=1}$ of $n$ statistical units, a linear regression model assumes that the relationship between the dependent variable $y$ and the $p$-vector of regressors $x$ is linear. This relationship is modeled through a disturbance term or error variable $\epsilon$ — an unobserved random variable that adds "noise" to the linear relationship between the dependent variable and regressors. Thus the model takes the form
+
+$$y_i = \beta_0 + \beta_1x_{i1}+...+\beta_yX_{ip}+\epsilon_{i} = x^T_i\beta + \epsilon_i   $$
+
+where $i = 1,...,n$, and $^T$ means transpose, so that $x^T_i\beta$ is the inner product between vectors $x_i$ and $\beta$.
+
+
+### 3.2.3 Generalized Additive Model using LOESS
+Generalized Additive Model or GAM is an additive modeling technique where the impact of the predictive variables is captured through smooth functions which—depending on the underlying patterns in the data—can be nonlinear. GAM is writes in the form:
+
+$$ g(E(Y))= \alpha + s_1(x_1)+...+s_p(x_p)  $$
+
+where $Y$ is the dependent variable, $E(Y)$ denotes the expected value, and $g(Y)$ denotes the link function that links the expected value to the predictor variables $x_1,…,x_p$. The terms $s_1(x_1),…,s_p(x_p)$ denote smooth, nonparametric functions. 
+
+
+LOESS (locally estimated scatterplot smoothing) is method developed for calculation of local regression, local polynomial regression or moving regression, which is a generalization of moving average and polynomial regression. LOESS is builds on "classical" methods, such as linear and nonlinear least squares regression. It address situations in which the classical procedures do not perform well or cannot be effectively applied without undue labor. LOESS combines much of the simplicity of linear least squares regression with the flexibility of nonlinear regression. It does this by fitting simple models to localized subsets of the data to build up a function that describes the deterministic part of the variation in the data, point by point. In fact, one of the chief attractions of this method is that the data analyst is not required to specify a global function of any form to fit a model to the data, only to fit segments of the data.
+
+
+### 3.2.4 K-nearest Neighbors
+
+K-nearest neighbors algorithm (k-NN) is a non-parametric method used for classification and regression, where 
+
++ for k-NN classification, an object is classified by a plurality vote of its neighbors, with the object being assigned to the class most common among its $k$ nearest neighbors. If $k = 1$, then the object is simply assigned to the class of that single nearest neighbor.
++ for k-NN regression, the output value is the average of the values of k nearest neighbors.
+
+K-NN for categorical variables use Hamming distance functions as the form below
+
+$$Hamming \ Distance = D_H = \sum^k_{i=1} \left\lvert x_i-y_i \right\rvert $$
+
+Where, 
+$$x=y \ => \ D=0$$
+$$x\neq y \ => D=1\ $$
+
+
+### 3.2.5 K-Means Clustering
+k-means clustering is a method of vector quantization, originally from signal processing, that aims to partition n observations into k clusters in which each observation belongs to the cluster with the nearest mean (cluster centers or cluster centroid), serving as a prototype of the cluster. This results in a partitioning of the data space into Voronoi cells. 
+
+Given a set of observations $(x_1, x_2, ..., x_n)$, where each observation is a d-dimensional real vector, k-means clustering aims to partition the n observations into $k (\leq n)$ sets $S = {S_1, S_2, ..., S_k}$ so as to minimize the within-cluster sum of squares:
+
+$$arg \ min \sum^k_{i=1}\sum_{x\epsilon S_i} \left\lvert\left\lvert x-\mu \right\rvert\right\rvert^2 = arg \ min \sum^k_{i=1}\left\lvert S_i \right\rvert Var S_i  $$
+where $\mu_i$ is the mean of points in $S_i$. 
+
+
+### 3.2.6 Random Forest
+
+Random forests is an ensemble learning method for classification, regression and other tasks that operate by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes (classification) or mean/average prediction (regression) of the individual trees. Random forests correct for decision trees' habit of overfitting to their training set and generally outperform decision trees, but lower than gradient boosted trees. 
+
+```{r print_rf_diagram, echo=FALSE, message=F, warning=F, fig.align="center"}
+# Define variable containing url
+url <- "https://raw.githubusercontent.com/wykoong/PH125.9x-Capstone-UCI_CreditCard_DEFAULT/master/img/Random_forest_diagram_complete.png"
+library(png)
+library(RCurl)
+url_cont <- getURLContent(url)
+img <- readPNG(url_cont)
+rimg <- as.raster(img) # raster multilayer object
+r <- nrow(rimg) / ncol(rimg) # image ratio
+plot(rimg)
+
+rm(url,url_cont,img,rimg,r)
+```
+
+Random forests are frequently used as "blackbox" models in businesses, and involves following steps/algorithms:
+
+\
+**Decision Tree Learning** \
+Decision tree learning is one of the predictive modelling approaches. It uses a decision tree (as a predictive model) to go from observations about an item (represented in the branches) to conclusions about the item's target value (represented in the leaves). Tree models where the target variable can take a discrete set of values are called classification trees; in these tree structures, leaves represent class labels and branches represent conjunctions of features that lead to those class labels. Decision trees where the target variable can take continuous values (typically real numbers) are called regression trees. 
+
+Forests are like the pulling together of decision tree algorithm efforts. Taking the teamwork of many trees thus improving the performance of a single random tree. Though not quite similar, forests give the effects of a K-fold cross validation.
+
+\
+**Bagging**\
+Bagging, or bootstrap aggregating, is a machine learning ensemble meta-algorithm designed to improve the stability and accuracy of machine learning algorithms used in statistical classification and regression. It also reduces variance and helps to avoid overfitting. 
+
+
+### 3.2.7 Gradient Boosting
+Gradient boosting is a machine learning technique for regression and classification problems, which produces a prediction model in the form of an ensemble of weak prediction models, typically decision trees. It builds the model in a stage-wise fashion like other boosting methods do, and it generalizes them by allowing optimization of an arbitrary differentiable loss function.
+
+XGBoost package is used for Gradient Boosting estimation, compare with other gradient boosting algorithms, XGBoost:
+
++ Clever penalization of trees
++ A proportional shrinking of leaf nodes
++ Newton Boosting
++ Extra randomization parameter
++ Implementation on single, distributed systems and out-of-core computation
+
+
+
+
+
+\newpage
+`r ###################################################################################`
+# 4 Obtain Data
+## 4.1 Data Source
+The UCI Credit Card Default dataset is download from Kaggle.com using following URL:
+
++ https://www.kaggle.com/uciml/default-of-credit-card-clients-dataset
+
+```{r obtain_data, echo=FALSE}
+dat_raw <- read.csv("https://raw.githubusercontent.com/wykoong/PH125.9x-Capstone-UCI_CreditCard_DEFAULT/master/data/UCI_Credit_Card.csv")
+dat_raw_original <- dat_raw
+```
+
+## 4.2 Dataset Dimension
+The downloaded dataset consists of `r length(dat_raw)` columns and `r comma(nrow(dat_raw),digits=0)` of records.
+```{r dataset_dimension, echo=FALSE}
+tmp_dim <- data.frame(dim(dat_raw))
+colnames(tmp_dim) <- "Count"
+rownames(tmp_dim) <- c("Row","Column")
+tmp_dim %>% knitr::kable(caption="DATASET DIMENION", digits=4, format.args=list(big.mark=",")) 
+rm(tmp_dim)
+```
+
+
+## 4.3 Variables
+The obtained dataset contains 25 variables, which are:
+```{r variable_definition, echo=FALSE}
+matrix(c(VARIABLE=c("ID", "LIMIT_BAL","SEX","EDUCATION","MARRIAGE","AGE",
+           "PAY_0","PAY_2","PAY_3","PAY_4","PAY_5","PAY_6",
+           "BILL_AMT1","BILL_AMT2","BILL_AMT3","BILL_AMT4","BILL_AMT5",'BILL_AMT6',
+           "PAY_AMT1","PAY_AMT2","PAY_AMT3","PAY_AMT4","PAY_AMT5","PAY_AMT6",
+           "default.payment.next.month"),
+DESCRIPTION <- c("ID of each client", 
+                 "Credit Limit, Amount of given credit in NT dollars (includes individual and family/supplementary credit", 
+                 "Gender (1=male, 2=female)",
+                 "Education (0=?, 1=graduate school, 2=university, 3=high school, 4=others, 5=unknown, 6=unknown)", 
+                 "Marital status (0=?,1=married, 2=single, 3=others)", 
+                 "Age in years",
+                 "Repayment status in September, 2005 (-1=pay duly, 1=payment delay for one month, 2=payment delay for two months, ... 8=payment delay for eight months, 9=payment delay for nine months and above)",
+                 "Repayment status in August, 2005 (scale same as above)",
+                 "Repayment status in July, 2005 (scale same as above)",
+                 "Repayment status in June, 2005 (scale same as above)",
+                 "Repayment status in May, 2005 (scale same as above)",
+                 "Repayment status in April, 2005 (scale same as above)",
+                 "Amount of bill statement in September, 2005 (NT dollar)",
+                 "Amount of bill statement in August, 2005 (NT dollar)",
+                 "Amount of bill statement in July, 2005 (NT dollar)",
+                 "Amount of bill statement in June, 2005 (NT dollar)",
+                 "Amount of bill statement in May, 2005 (NT dollar)",
+                 "Amount of bill statement in April, 2005 (NT dollar)",
+                 "Amount of previous payment in September, 2005 (NT dollar)",
+                 "Amount of previous payment in August, 2005 (NT dollar)",
+                 "Amount of previous payment in July, 2005 (NT dollar)",
+                 "Amount of previous payment in June, 2005 (NT dollar)",
+                 "Amount of previous payment in May, 2005 (NT dollar)",
+                 "Amount of previous payment in April, 2005 (NT dollar)",
+                 "Default payment (1=yes, 0=no)")),
+25,2)  %>% knitr::kable(caption="VARIABLES DEFINITION") 
+
+```
+
+
+## 4.4 NA Value
+The last data cleansing is to ensure no NA data that will significantly affecting modeling exercise. Based on below function output, there is no NA data in the dataset.
+```{r check_NA}
+anyNA(dat_raw)
+```
+
+## 4.5 Variables Summary
+Following are preliminary analysis of all 25 variables:
+```{r variables_summary, echo=FALSE}
+dfSummary(dat_raw, plain.ascii = FALSE, style = "grid", 
+          graph.magnif = 1, valid.col=FALSE, na.col=FALSE, graph.col=FALSE,
+          tmp.img.dir = "./tmp", round.digits=2)  
+
+```
+
+
+\newpage
+`r ###################################################################################`
+# 5 Scrub Data
+## 5.1 ID
+Variable ID is the unique identifier of the dataset and play no role in analysis. It's useful for unique identically a row of record, but will mislead subsequent modeling efforts. Thus, I removed this variable from the main dataset.
+
+``` {r remove_id}
+dat_raw <- dat_raw[,-1]
+```
+
+## 5.2 default.payment.next.month
+Variable default.payment.next.month refers to whether a client has defaulted Oct 2005 credit card payment. Default in credit card payment means failure to make a payment by the due date. If this happens, the credit card issuance financial institution will impose penalty charge to the default, and if the case has become delinquency, legal action will be taken to enforce payment.
+
+This variable name is kind of too long and not in consistent naming convention of other variables, thus, I renamed the variable to DEFAULT. 
+
+```{r rename_default}
+names(dat_raw)[24] <- "DEFAULT"
+```
+
+## 5.3 PAY_0
+Variable PAY_0 is defined as "Repayment status in September, 2005 (-1=pay duly, 1=payment delay for one month, 2=payment delay for two months, ... 8=payment delay for eight months, 9=payment delay for nine months and above)", which is similar with variables PAY_2, PAY_3, PAY_4, PAY_5 and PAY_6. I renamed the column PAY_0 to PAY_1 to made it consistent with variables BILL_AMT1 & PAY_AMT1 which means value for September 2005.
+
+``` {r rename_PAY_0}
+names(dat_raw)[6] <- "PAY_1"
+```
+
+## 5.4 PAY_AMTx and BILL_AMTx
+Variables PAY_AMT1, PAY_AMT2 ... PAY_AMT6 which refers to "Amount of previous payment" and BILL_AMT1, BILL_AMT2 ... BILL_AMT6 which refers to "Amount of bill statement" are kind of confusion when refer together with PAY_1, PAY_2 ... PAY_6. For ease of references throughout the report and modeling, I renamed these columns respectively
+
++ BILL_AMTx to BILLED_x
++ PAY_AMTx to PAYMENT_x
+
+```{r rename_bill_pay_amt}
+colnames(dat_raw)[12:17] <- rep(paste("BILLED",1:6,sep="_"),1)
+colnames(dat_raw)[18:23] <- rep(paste("PAYMENT",1:6,sep="_"),1)
+```
+
+\newpage
+## 5.5 FACTORIZED DATA
+Refers to above variables definition and variables summary, following variables are identified as categorical data that should be factorized:
+
+```{r categorical_variables, echo=FALSE}
+matrix(c(VARIABLE=c("SEX","EDUCATION","MARRIAGE","DEFAULT"),
+DESCRIPTION <- c("Gender (1=male, 2=female)",
+                 "Education (0=?, 1=graduate school, 2=university, 3=high school, 4=others, 5=unknown, 6=unknown)", 
+                 "Marital status (0=?,1=married, 2=single, 3=others)", 
+                 "Default payment (1=yes, 0=no)")),
+4,2)  %>% knitr::kable(caption="CATEGORICAL VARIABLES")
+```
+
+These 4 variables are factorized with following syntax:
+```{r factorized_variables}
+tmp_categorical <- c('SEX','EDUCATION','MARRIAGE','DEFAULT')
+dat_raw[tmp_categorical] <- lapply(dat_raw[tmp_categorical], 
+                                   function(x) as.factor(x))
+rm(tmp_categorical)
+```
+
+Apart of above 4 variables, PAY_1, PAY_2, PAY_3, PAY_4, PAY_5 & PAY_6 are also categorical, however I do not factorized these variables due to analysis that to be performed later.
+
+\newpage
+## 5.6 SEX
+As defined in variable definition, SEX is categorical data with 2 value, 
+
++ 1 means male, and
++ 2 means female.
+
+Checking levels of SEX data, the data is found to be comformed with the above definition thus no further actio required.
+```{r check_SEX_unique, echo=FALSE}
+table(dat_raw$SEX) %>% t() %>% knitr::kable(caption="EDUCATION VARIABLE", digits=4, format.args=list(big.mark=","))
+```
+
+
+By plotting SEX Distribution, there are total of 18,112 FEMALE vs 11,888 MALE. The prevalence of SEX data is slightly imbalance by FEMALE over MALE of `r comma(18112*100/11888,digits=2)`%. 
+
+```{r sex_distribution, echo=FALSE}
+dat_raw %>% group_by(SEX) %>% summarise(Count=n()) %>% 
+  mutate(SEX=ifelse(SEX==1,"MALE","FEMALE"), CountLabel = comma(Count,digits=0)) %>%
+  ggplot(aes(x="", y=Count, fill=SEX)) +
+  geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y", start=0) + xlab("") + ylab("") + ggtitle("SEX Distributionn") +
+  geom_text(aes(y=Count, label=SEX), color="white", vjust=c(-7,-1), size=5) +
+  geom_text(aes(y=Count, label=CountLabel), color="white", vjust=c(-7,0), size=4) +
+  scale_fill_manual(values=c("blue", "red")) + 
+  theme_minimal() + theme(legend.position="none") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+\newpage
+## 5.7 EDUCATION
+As defined in variable definition, EDUCATION is categorical data with 6 value, which respectively means:
+
++ 1=graduate school, 
++ 2=university, 
++ 3=high school, 
++ 4=others, 
++ 5=unknown, and 
++ 6=unknown.
+
+The class 4, 5 & 6 are all by definition refers to the same definition. Although it may be interpreted differently by the source owner and influence modeling output, however, by retains these 3 classes as current form will impact my interpretation of the result. Thus, I am going to modify class 4, 5 & 6 to class 4.
+
+Before executing the data parsing, I examined the data cardinally:
+
+```{r check_education_unique, echo=FALSE}
+table(dat_raw$EDUCATION) %>% t() %>% knitr::kable(caption="EDUCATION VARIABLE", digits=4, format.args=list(big.mark=","))
+```
+
+``` {r plot_education_unique, echo=FALSE}
+dat_raw %>% group_by(EDUCATION) %>% summarise(Count=n()) %>% 
+  mutate(Edu_text = case_when(
+    EDUCATION == 1 ~ "1 Graduate School",
+    EDUCATION == 2 ~ "2 University",
+    EDUCATION == 3 ~ "3 High School",
+    EDUCATION == 4 ~ "4 Othes",
+    EDUCATION == 5 ~ "5 Unknown",
+    EDUCATION == 6 ~ "6 unknown"
+  ), Edu_Label = paste(Edu_text, "(", comma(Count,digits=0),")")) %>%
+  ggplot(aes(x="", y=Count, fill=Edu_Label)) +
+  geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y", start=0) + xlab("") + ylab("") + ggtitle("EDUCATION DISTRIBUTION") +
+  scale_fill_manual(values=c("blue", "red", "green", "yellow", "pink", "purple", "orange")) + 
+  theme_minimal() + labs(fill = "Education")+
+  theme(plot.title = element_text(hjust = 0.5), legend.justification = "center",
+        legend.position = "top")
+```        
+
+Surprisingly, there is a class 0 that's not defined, that should be also classified as class 4 "others". Following codes are executed to parse Education data:
+
+```{r parse_education}
+dat_raw$EDUCATION[which(dat_raw$EDUCATION %in% c(0,4,5,6))] = 4
+```
+
+From the below parsed EDUCATION variable distribution, most clients (`r mean(dat_raw$EDUCATION==2)*100`%) are having University level education. 
+
+```{r plot_education_distribution, echo=FALSE}
+dat_raw %>% group_by(EDUCATION) %>% summarise(Count=n()) %>% 
+  mutate(Edu_text = case_when(
+    EDUCATION == 1 ~ "Graduate School",
+    EDUCATION == 2 ~ "University",
+    EDUCATION == 3 ~ "High School",
+    TRUE ~ "Others"
+  ), Edu_Label = paste(Edu_text, "(", comma(Count,digits=0),")")) %>%
+  ggplot(aes(x="", y=Count, fill=Edu_Label)) +
+  geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y", start=0) + xlab("") + ylab("") + ggtitle("EDUCATION DISTRIBUTION (AFTER PARSE)") +
+  scale_fill_manual(values=c("blue", "red", "green", "yellow", "pink", "purple", "orange")) + 
+  theme_minimal() + labs(fill = "Education")+
+  theme(plot.title = element_text(hjust = 0.5), legend.justification = "center",
+        legend.position = "top")
+```
+
+\newpage
+## 5.8 MARRIAGE
+Based on variable definition, MARRIAGE is categorical data with 3 values:
+
++ 1=Married, 
++ 2=Single, and 
++ 3=Others.
+
+However, based on data cardinally examination, there is Class 0 that is not defined:
+
+```{r check_marriage_unique, echo=FALSE}
+table(dat_raw$MARRIAGE) %>% t() %>% knitr::kable(caption="MARRIAGE VARIABLE", digits=4, format.args=list(big.mark=","))
+```
+
+``` {r plot_marraige_unique, echo=FALSE}
+dat_raw %>% group_by(MARRIAGE) %>% summarise(Count=n()) %>% 
+  mutate(Mar_text = case_when(
+    MARRIAGE == 1 ~ "Married",
+    MARRIAGE == 2 ~ "Single",
+    MARRIAGE == 3 ~ "Others",
+    TRUE ~ "Others"
+  ), Mar_Label = paste(Mar_text, "(", comma(Count,digits=0),")")) %>%
+  ggplot(aes(x="", y=Count, fill=Mar_Label)) +
+  geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y", start=0) + xlab("") + ylab("") + ggtitle("MARRIAGE DISTRIBUTION (BEFORE PARSE)") +
+  scale_fill_manual(values=c("blue", "red", "green", "yellow", "pink", "purple", "orange")) + 
+  theme_minimal() + labs(fill = "MARRIAGE")+
+  theme(plot.title = element_text(hjust = 0.5), legend.justification = "center",
+        legend.position = "right")
+```
+
+The Class 0 is parsed to Class 3 Others, using following codes:
+```{r parse_marriage}
+dat_raw$MARRIAGE[which(dat_raw$MARRIAGE %in% c(0,3))] = 3
+```
+
+\newpage
+From the below parsed MARRIAGE variable distribution, most clients (`r mean(dat_raw$MARRIAGE==1)*100`%) are Single. 
+
+```{r plot_marriage_distribution, echo=FALSE}
+dat_raw %>% group_by(MARRIAGE) %>% summarise(Count=n()) %>% 
+  mutate(Mar_text = case_when(
+    MARRIAGE == 1 ~ "Married",
+    MARRIAGE == 2 ~ "Single",
+    TRUE ~ "Others"
+  ), Mar_Label = paste(Mar_text, "(", comma(Count,digits=0),")")) %>%
+  ggplot(aes(x="", y=Count, fill=Mar_Label)) +
+  geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y", start=0) + xlab("") + ylab("") + ggtitle("MARRIAGE DISTRIBUTION (AFTER PARSE)") +
+  scale_fill_manual(values=c("blue", "red", "green", "yellow", "pink", "purple", "orange")) + 
+  theme_minimal() + labs(fill = "MARRIAGE")+
+  theme(plot.title = element_text(hjust = 0.5), legend.justification = "center",
+        legend.position = "right")
+```
+
+
+\newpage
+## 5.9 AGE
+AGE variable refers to the age of client ranging from `r min(dat_raw$AGE)` to `r max(dat_raw$AGE)` with distribution as below. The AGE distribution is skewed right.
+
+```{r plot_age_unique, echo=FALSE}
+dat_raw %>%  
+  ggplot(aes(AGE)) + geom_bar() + 
+  ggtitle("AGE DISTRUBUTION") +
+  xlab("AGE") + ylab("Count") +   theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5)) 
+```
+
+In order to minimized numbers of AGE class, AGE variable is grouped using Average Silhouette. 
+
+\
+**Silhouette analysis** \
+Silhouette analysis is used to study the separation distance between the resulting clusters. The silhouette plot displays a measure of how close each point in one cluster is to points in the neighboring clusters and thus provides a way to assess parameters like number of clusters visually. Silhouette coefficients (as these values are referred to as) near +1 indicate that the sample is far away from the neighboring clusters. A value of 0 indicates that the sample is on or very close to the decision boundary between two neighboring clusters and negative values indicate that those samples might have been assigned to the wrong cluster.
+
+\
+\
+**CAUTION** \
+Processing of following codes will be taking more than **3 hours**. Do run only if necessary.
+The results from my execution is hardcoded for ease of reference in this report.
+
+``` {r age_grouping_silhouette, eval=FALSE}
+tmp_cluster <- numeric(20)
+tmp_k <- seq(2,20)
+tmp_k <- c(2,20)
+
+tmp_cluster <- sapply(tmp_k, function(x){
+  tmp_start_timer <- Sys.time()
+  tmp_avg <- pam(dat_raw$AGE, x)$silinfo$avg.width
+  cat("silhouette analysis for cluster:", x,
+      ", average:",tmp_avg,"\n")
+  cat("Now:", print(Sys.time(),"%d.%m.%Y %H:%M:%S"),", proc time:",
+      print(difftime(tmp_start_timer,Sys.time())), "\n")
+  tmp_avg
+})
+
+```
+
+<!-- # silhouette analysis for cluster: 2 , average: 0.60518, proc time: -2.8947  -->
+<!-- # silhouette analysis for cluster: 3 , average: 0.56497, proc time: -3.5551  -->
+<!-- # silhouette analysis for cluster: 4 , average: 0.54865, proc time: -4.1282  -->
+<!-- # silhouette analysis for cluster: 5 , average: 0.539, proc time: -11.115  -->
+<!-- # silhouette analysis for cluster: 6 , average: 0.54956, proc time: -5.3508  -->
+<!-- # silhouette analysis for cluster: 7 , average: 0.54953, proc time: -3.9899  -->
+<!-- # silhouette analysis for cluster: 8 , average: 0.55475, proc time: -10.57  -->
+<!-- # silhouette analysis for cluster: 9 , average: 0.5566, proc time: -14.516  -->
+<!-- # silhouette analysis for cluster: 10 , average: 0.5774, proc time: -12.304  -->
+<!-- # silhouette analysis for cluster: 11 , average: 0.58894, proc time: -10.398  -->
+<!-- # silhouette analysis for cluster: 12 , average: 0.58285, proc time: -10.538  -->
+<!-- # silhouette analysis for cluster: 13 , average: 0.6149, proc time: -15.127  -->
+<!-- # silhouette analysis for cluster: 14 , average: 0.6324, proc time: -16.197  -->
+<!-- # silhouette analysis for cluster: 15 , average: 0.66712, proc time: -13.272  -->
+<!-- # silhouette analysis for cluster: 16 , average: 0.66235, proc time: -13.642  -->
+<!-- # silhouette analysis for cluster: 17 , average: 0.68295, proc time: -13.799  -->
+<!-- # silhouette analysis for cluster: 18 , average: 0.68217, proc time: -13.841  -->
+<!-- # silhouette analysis for cluster: 19 , average: 0.72059, proc time: -14.705  -->
+<!-- # silhouette analysis for cluster: 20 , average: 0.75041, proc time: -11.728  -->
+
+
+
+``` {r plot_age_grouping_silhouette, echo=FALSE}
+
+tmp_silavg <- rbind(cluster=2:20, average=c(0.60518,0.56497,0.54865,0.539,0.54956,0.54953,0.55475,
+                                            0.5566,0.5774,0.58894,0.58285,0.6149,0.6324,0.66712,
+                                            0.66235,0.68295,0.68217,0.72059,0.75041)) %>% 
+  t() %>% as.data.frame() 
+
+tmp_AGE_cluster <- tmp_silavg %>% arrange(desc(average)) %>% top_n(1) %>% select(cluster)
+
+tmp_silavg %>% ggplot(aes(cluster,average)) + geom_line(stat="identity") + 
+  geom_text(aes(label=average)) +
+  ggtitle("AGE Clustering Assessment") + 
+  xlab("Cluster Size") + ylab("Average Silhouette Width") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) 
+
+```
+
+Based on above chart, the recommended clustering size using Silhouett Analysis is `r tmp_AGE_cluster$cluster`. Thus, it means that the original `r max(dat_raw$AGE) - min(dat_raw$AGE) + 1` classes should be reduced into 20, which translated into `r ceiling((max(dat_raw$AGE) - min(dat_raw$AGE) + 1)/20)` years per class:
+
+``` {r plot_age_distribution, echo=FALSE}
+tmp_age_slice <- ceiling((max(dat_raw$AGE) - min(dat_raw$AGE) + 1)/20)
+dat_raw <- dat_raw %>% mutate(AGE_FAC = round(AGE/tmp_age_slice,0)*tmp_age_slice)
+
+dat_raw %>%  
+  ggplot(aes(AGE_FAC)) + geom_bar() + ggtitle("AGE (GROUPED) DISTRUBUTION") +
+  xlab("AGE") + ylab("Count") +   theme_minimal() + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+\newpage
+## 5.10 BILLED_x & PAYMENT_x
+According to variables definition provide d, BILLED_x are referring to billed credit card amount and PAYMENT_x are referring to actual credit card payment made for the month. In the credit card industry, a client can choose to pay minimal amount for the monthly bills, paying partial, paying full as billed, or paying more than billed. Another important info that is not explained is whether the BILLED_x amount is the actual billed or the part of the amount spent for the month:
+
+$$BILLED\_x = (\sum  BILLED_x+BILLED_{x-1} + ...+ BILLED_{x-n}) - $$
+$$ (\sum  PAYMENT_{x-1} + PAYMENT_{x-2} + ... + PAYMENT_{x-n})$$
+or, 
+
+$$BILLED\_x = \sum  ACTUAL\ SPENT_x$$
+
+Cross referencing between PAYMENT_x and BILLED_x are useless without the definition is clarified. Also, by using credit card industry definition, BILLED amount can be negative, in which client paid more than billed amount in previous month, however, PAYMENT amount must be always positive. Thus, checking of any negative PAYMENT_x amount is necessary:
+
+```{r calculate_tmp_payment_dat, echo=FALSE}
+tmp_payment_dat <- dat_raw %>% select(PAYMENT_1,PAYMENT_2,PAYMENT_3,PAYMENT_4,PAYMENT_5,PAYMENT_6) %>% gather("MTH","AMT") 
+```
+
+There are total of `r comma(sum(tmp_payment_dat<0),digits=0)` PAYMENT_X that are negative, thus, no parse required.
+
+\newpage
+## 5.11 LIMIT_BAL
+Based on Credit Card Industry definition, LIMIT_BAL means the maximum amount a client can spent, which means the last billed amount should be always less than the limit balance, or a small % above the limit balance due to the monthly interest charge.
+
+However, while cross checking between LIMIT_BAL and PAYMENT_1, PAYMENT_2, BILLED_1 & BILLED_2, the dataset presented is not conformed with the Credit Card Industry practice. For example, following are some sample data that are do not make sense:
+
+```{r sample_excissive_billed_dat, echo=FALSE}
+tmp_dat_limitbal_1 <- dat_raw %>% filter(BILLED_1>LIMIT_BAL) %>% 
+  mutate(DIFF_PERCENTAGE=(BILLED_1/LIMIT_BAL)-1) %>%
+  filter(DIFF_PERCENTAGE>0.2) %>% 
+  select(LIMIT_BAL,DIFF_PERCENTAGE,BILLED_1,BILLED_2,PAYMENT_1,PAYMENT_2) %>%
+  top_n(5,wt=DIFF_PERCENTAGE)
+tmp_dat_limitbal_2 <- dat_raw %>% filter(BILLED_1>LIMIT_BAL) %>% 
+  mutate(DIFF_PERCENTAGE=(BILLED_1/LIMIT_BAL)-1) %>%
+  filter(DIFF_PERCENTAGE>0.2) %>% filter(BILLED_2==0) %>%
+  select(LIMIT_BAL,DIFF_PERCENTAGE,BILLED_1,BILLED_2,PAYMENT_1,PAYMENT_2) %>%
+  top_n(3,wt=DIFF_PERCENTAGE)
+tmp_dat_limitbal_3 <- dat_raw %>% filter(BILLED_1>LIMIT_BAL) %>% 
+  mutate(DIFF_PERCENTAGE=(BILLED_1/LIMIT_BAL)-1) %>%
+  filter(DIFF_PERCENTAGE>0.2) %>% filter(BILLED_2>0 & PAYMENT_2<=0) %>%
+  select(LIMIT_BAL,DIFF_PERCENTAGE,BILLED_1,BILLED_2,PAYMENT_1,PAYMENT_2) %>%
+  top_n(3,wt=DIFF_PERCENTAGE)
+rbind(tmp_dat_limitbal_1,tmp_dat_limitbal_2,tmp_dat_limitbal_3) %>% mutate(LIMIT_BAL=comma(LIMIT_BAL,digits=0)) %>%
+  mutate(BILLED_1=comma(BILLED_1,digits=0)) %>%mutate(BILLED_2=comma(BILLED_2,digits=0)) %>%
+  mutate(PAYMENT_1=comma(PAYMENT_1,digits=0)) %>%mutate(PAYMENT_2=comma(PAYMENT_2,digits=0)) %>%
+  knitr::kable(caption="ABNORMAL DATA", digits=4, format.args=list(big.mark=","))
+rm(tmp_dat_limitbal_1,tmp_dat_limitbal_2,tmp_dat_limitbal_3)
+```
+
+\newpage
+## 5.12 PAY_x
+As describe in the variable definitions, the value of PAY_x means the number of month payment delayed. Therefore, for a record which PAY_1 = 8, means the client only made credit card payment after Jun 2006 (Oct 2005 + 9 months). 
+
+```{r sample_pay_x_data, echo=FALSE}
+dat_raw %>% filter(PAY_1>=8) %>% top_n(10) %>% 
+  select(PAY_1,PAY_2,PAY_3,PAY_4,PAY_5,PAY_6) %>%
+  mutate(PAID_1=format(as.Date("1SEP2005","%d%B%Y")+months(PAY_1),"%b %Y"),
+         PAID_2=format(as.Date("1AUG2005","%d%B%Y")+months(PAY_2),"%b %Y"),
+         PAID_3=format(as.Date("1JUL2005","%d%B%Y")+months(PAY_3),"%b %Y"),
+         PAID_4=format(as.Date("1JUN2005","%d%B%Y")+months(PAY_4),"%b %Y"),
+         PAID_5=format(as.Date("1MAY2005","%d%B%Y")+months(PAY_5),"%b %Y"),
+         PAID_6=format(as.Date("1APR2005","%d%B%Y")+months(PAY_6),"%b %Y")) %>%
+  knitr::kable(caption="SAMPLE PAY_x DATA", digits=4, format.args=list(big.mark=","))
+```
+
+*The above data are kind of mistake by UCI when preparing the data, the data is made more sense if PAY_6 means payment for month SEP 2005, and PAY_1 is for APR 2005.*
+
+\newpage
+## 5.13 CONVENIENCE VARIABLES
+To simplified dataset presentation, I added following convenience variables to EDUCATION, SEX, MARRIAGE and DEFAULT VARIABLES:
+
++ EDU_text with value ("Graduate School", "University", "High School" and "Others")
++ SEX_text with value ("Male" and "Female")
++ MAR_text with value ("Married", "Single" and "Others")
++ DEF_text with value ("YES" and "NO")
+
+```{r add_convenience_variables}
+dat_raw <- dat_raw %>% mutate(EDU_text = case_when(
+  EDUCATION == 1 ~ "Graduate School",
+  EDUCATION == 2 ~ "University",
+  EDUCATION == 3 ~ "High School",
+  TRUE ~ "Others"
+)) %>% mutate(SEX_text=ifelse(SEX==1,"Male","Female")) %>%
+  mutate(MAR_text = case_when(
+    MARRIAGE == 1 ~ "Married",
+    MARRIAGE == 2 ~ "Single",
+    TRUE ~ "Others"
+  )) %>% mutate(DEF_text=ifelse(DEFAULT==1,"YES","NO"))
+```
+
+
+\newpage
+`r ###################################################################################`
+# 6 Explore Data
+In this section I am exploring data from the perspective of how DEFAULT correlate with other variables. Below is the overall DEFAULT versus SEX, EDUCATION & MARRIAGE.
+
+```{r plot_default_sex_edu_mar, echo=FALSE}
+dat_raw %>% select(DEF_text,SEX_text, EDU_text,MAR_text) %>% gather(CATEGORY,VALUE,-DEF_text) %>%
+  mutate(CATEGORY = case_when(
+    CATEGORY == "SEX_text" ~ "SEX",
+    CATEGORY == "EDU_text" ~ "EDUCATION",
+    CATEGORY == "MAR_text" ~ "MARRIAGE"
+  )) %>%
+  ggplot(aes(DEF_text,fill=VALUE)) + geom_bar() + 
+  ggtitle("DEFAULT DISTRIBUTION BY EDUCATION, MARRIAGE & SEX") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("DEFAULT") +
+  facet_grid(~CATEGORY) 
+```
+
+\newpage
+## 6.1 EDUCATION VS DEFAULT
+From below chart, DEFAULT happens in all EDUCATION categories.
+
+``` {r plot_education_default, echo=FALSE}
+dat_raw %>%  ggplot(aes(EDU_text,fill=DEF_text)) + geom_bar() +
+  ggtitle("COUNT OF DEFAULT BY EDUCATION") + xlab("EDUCATION") + ylab("Count") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5)) + 
+  scale_fill_manual(name="DEFAULT", values=c("blue", "red"))
+```
+
+\newpage
+By changing the count into percentage, in exception of "Others", there is no obvious relationship between education level and likelihood of a client default on OCT 2005 payment.
+
+```{r plot_pie_education_default, echo=FALSE}
+tmp_edu <- dat_raw %>% group_by(EDU_text,DEFAULT) %>% summarise(Count=n()) %>% 
+  spread(EDU_text,Count) 
+tmp_edu <- apply(tmp_edu,2,function(x){as.numeric(x)*100/sum(as.numeric(x))})  
+tmp_edu %>% as.data.frame() %>% gather("EDUCATION","VALUE",-DEFAULT) %>% 
+  mutate(DEFAULT=ifelse(DEFAULT==100,"YES","NO")) %>%
+  mutate(per=comma(VALUE,digits=2)) %>%
+  mutate(per=paste(per,"%")) %>%
+  ggplot(aes(EDUCATION,VALUE, fill=DEFAULT)) + 
+  geom_bar(position = "stack", stat = "identity") +
+  geom_text(aes(y=VALUE, label=per), color="white", size=3, vjust=1) +
+  theme_minimal() +
+  scale_fill_manual(values=c("blue", "red")) +
+  ggtitle("PERCENTAGE(%) OF DEFAULT BY EDUCATIONS") + ylab("PERCENTAGE(%)") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top")
+rm(tmp_edu)
+```
+
+\newpage
+## 6.2 SEX vs DEFAULT
+From the following chart, both sex had defaulted OCT 2005 payment.
+
+```{r plot_sex_default, echo=FALSE}
+dat_raw %>%  ggplot(aes(SEX_text,fill=DEF_text)) + geom_bar() +
+  ggtitle("COUNT OF DEFAULT BY SEX") + xlab("SEX") + ylab("Count") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5)) + 
+  scale_fill_manual(name="DEFAULT", values=c("blue", "red"))
+```
+\newpage
+By analysing the DEFAULT percentage between SEX, there's no significantly difference between MALE & FEMALE on the likelihood of defaulting OCT 2005, however, with MALE has slightly higher by `r (24.17/20.78)-1`%.
+
+```{r plot_pie_sex_default, echo=FALSE}
+tmp_sex <- dat_raw %>% group_by(SEX_text,DEFAULT) %>% summarise(Count=n()) %>% 
+  spread(SEX_text,Count) 
+tmp_sex <- apply(tmp_sex,2,function(x){as.numeric(x)*100/sum(as.numeric(x))})  
+tmp_sex %>% as.data.frame() %>% gather("SEX","VALUE",-DEFAULT) %>% 
+  mutate(DEFAULT=ifelse(DEFAULT==100,"YES","NO")) %>%
+  mutate(per=comma(VALUE,digits=2)) %>%
+  mutate(per=paste(per,"%")) %>%
+  ggplot(aes(SEX,VALUE, fill=DEFAULT)) + 
+  geom_bar(position = "stack", stat = "identity") +
+  geom_text(aes(y=VALUE, label=per), color="white", size=5, vjust=1) +
+  theme_minimal() +
+  scale_fill_manual(values=c("blue", "red")) +
+  ggtitle("PERCENTAGE(%) OF DEFAULT BY SEX") + ylab("PERCENTAGE(%)") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top")
+rm(tmp_sex)
+```
+
+\newpage
+## 6.3 MARRIAGE vs DEFAULT
+Following chart show count of DEFAULT by MARRIAGE.
+
+```{r plot_marriage_default, echo=FALSE}
+dat_raw %>%  ggplot(aes(MAR_text,fill=DEF_text)) + geom_bar() +
+  ggtitle("COUNT OF DEFAULT BY MARRIAGE") + xlab("MARRIAGE") + ylab("Count") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5)) + 
+  scale_fill_manual(name="DEFAULT", values=c("blue", "red"))
+```
+
+\newpage
+By plotting DEFAULT percentage between MARRIAGE, there is no apparant different between the possibility of defaulting OCT 2005 payment by Marriage status.
+
+```{r plot_pie_marraige_default, echo=FALSE}
+tmp_mar <- dat_raw %>% group_by(MAR_text,DEFAULT) %>% summarise(Count=n()) %>% 
+  spread(MAR_text,Count) 
+tmp_mar <- apply(tmp_mar,2,function(x){as.numeric(x)*100/sum(as.numeric(x))})  
+tmp_mar %>% as.data.frame() %>% gather("MARRIAGE","VALUE",-DEFAULT) %>% 
+  mutate(DEFAULT=ifelse(DEFAULT==100,"YES","NO")) %>%
+  mutate(per=comma(VALUE,digits=2)) %>%
+  mutate(per=paste(per,"%")) %>%
+  ggplot(aes(MARRIAGE,VALUE, fill=DEFAULT)) + 
+  geom_bar(position = "stack", stat = "identity") +
+  geom_text(aes(y=VALUE, label=per), color="white", size=3, vjust=1) +
+  theme_minimal() +
+  scale_fill_manual(values=c("blue", "red")) +
+  ggtitle("PERCENTAGE(%) OF DEFAULT BY MARRIAGE") + ylab("PERCENTAGE(%)") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top")
+rm(tmp_mar)
+```
+
+\newpage
+## 6.4 AGE_FAC vs DEFAULT
+Following chart shows that default on OCT 2005 payment happens at clients of all ages.
+
+```{r plot_agefac_default, echo=FALSE}
+dat_raw %>%  ggplot(aes(AGE_FAC,fill=DEF_text)) + geom_bar() +
+  ggtitle("COUNT OF DEFAULT BY AGE(FACTORIZED)") + xlab("AGE(FACTORIZED)") + ylab("Count") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5)) + 
+  scale_fill_manual(name="DEFAULT", values=c("blue", "red"))
+```
+
+\newpage
+Performing percentage of DEFAULT by AGE(Factorized) analysis, I notice that age group 72 (71 to 73) has the most high possibility of defaulting (40%) whilst those in age group 30 (29 to 31) has the lowest possibility of defaulting OCT 2005 credit card payment. The AGE_FAC has some impact to the possibility of DEFAULT.
+
+```{r plot_pie_agefac_default, echo=FALSE}
+tmp_age <- dat_raw %>% group_by(AGE_FAC,DEFAULT) %>% summarise(Count=n()) %>% 
+  spread(AGE_FAC,Count) 
+tmp_age <- apply(tmp_age,2,function(x){as.numeric(x)*100/sum(as.numeric(x))})  
+tmp_age %>% as.data.frame() %>% gather("AGE","VALUE",-DEFAULT) %>% 
+  mutate(DEFAULT=ifelse(DEFAULT==100,"YES","NO")) %>%
+  mutate(per=comma(VALUE,digits=2)) %>%
+  mutate(per=paste(per,"%")) %>%
+  ggplot(aes(AGE,VALUE, fill=DEFAULT)) + 
+  geom_bar(position = "stack", stat = "identity") +
+  geom_text(aes(y=VALUE, label=per), color="white", size=2, vjust=1) +
+  theme_minimal() +
+  scale_fill_manual(values=c("blue", "red")) +
+  ggtitle("PERCENTAGE(%) OF DEFAULT BY AGE(FACTORIZED)") + ylab("PERCENTAGE(%)") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top")
+rm(tmp_age)
+```
+
+\newpage
+## 6.5 PAY_1 vs DEFAULT
+Under credit card industry definition, DEFAULT does not happens if the client paid at least the minimal amount before payment due date. This means, if a client default on Sep 2005, it does not means he will also default in Oct 2005, thus:
+
++ PAY_1 = -1 (default on SEP 2005) does not always DEFAULT = 1 (default on OCT 2005), and
++ PAY_1 = 1 (pay on time for SEP 2005) does not always DEFAULT = 0 (pay on time for OCT 2005).
+
+As following chart shown, a client who pay on time, may still default OCT 2005 payment:
+
+``` {r plot_pay_default, echo=FALSE}
+dat_raw %>% select(DEF_text,PAY_1,PAY_2,PAY_3,PAY_4,PAY_5,PAY_6) %>% gather(PAY,GAP,-DEF_text) %>%
+  ggplot(aes(GAP)) + geom_bar(aes(label=GAP,fill=DEF_text)) + 
+  theme_minimal() +
+  scale_fill_manual(values=c("blue", "red"), name="DEFAULT") +
+  ggtitle("DEFAULT BY PAYMENT PERIOD") + ylab("Count") + xlab("PAYMENT DELAYED") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top")
+```
+
+\newpage
+By plotting payment status for Apr 2005 (PAY_6) to Sep 2005 (PAY_1), there's no significant different between the probability of DEFAULT from the 6 months payment status history.
+
+```{r plot_pay_default_facet, echo=FALSE}
+dat_raw %>% select(DEF_text,PAY_1,PAY_2,PAY_3,PAY_4,PAY_5,PAY_6) %>% gather(PAY,GAP,-DEF_text) %>%
+  ggplot(aes(GAP)) + geom_bar(aes(label=GAP,fill=DEF_text)) + 
+  theme_minimal() +
+  scale_fill_manual(values=c("blue", "red"), name="DEFAULT") +
+  ggtitle("DEFAULT BY PAYMENT PERIOD") + ylab("Count") + xlab("PAYMENT DELAYED") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top") +
+  facet_grid(~PAY)
+```
+
+\newpage
+However, if I removed those month a client pay on time, there is obvios indication that a client will likely to DEFAULT OCT 2005, if he delayed payment for 2 months.
+
+```{r plot_pay_default_remove, echo=FALSE}
+dat_raw %>% select(DEF_text,PAY_1,PAY_2,PAY_3,PAY_4,PAY_5,PAY_6) %>% gather(PAY,GAP,-DEF_text) %>%
+  filter(GAP>0) %>%
+  ggplot(aes(GAP)) + geom_bar(aes(label=GAP,fill=DEF_text)) + 
+  theme_minimal() +
+  scale_fill_manual(values=c("blue", "red"), name="DEFAULT") +
+  ggtitle("DEFAULT BY PAYMENT PERIOD (REMOVED PAID ON TIME)") + ylab("Count") + xlab("PAYMENT DELAYED") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top") 
+```
+
+\newpage
+The observation become more clear when plotting monthly payment delay (PAY_1 ... PAY_6). A client will likely to default on Oct 2005 payment if he delayed payment for 2 months.
+
+```{r plot_pay_default_facet_remove, echo=FALSE}
+dat_raw %>% select(DEF_text,PAY_1,PAY_2,PAY_3,PAY_4,PAY_5,PAY_6) %>% gather(PAY,GAP,-DEF_text) %>%
+  filter(GAP>0) %>%
+  ggplot(aes(GAP)) + geom_bar(aes(label=GAP,fill=DEF_text)) + 
+  theme_minimal() +
+  scale_fill_manual(values=c("blue", "red"), name="DEFAULT") +
+  ggtitle("DEFAULT BY PAYMENT PERIOD (REMOVED PAID ON TIME)") + ylab("Count") + xlab("PAYMENT DELAYED") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top") +
+  facet_grid(~PAY)
+```
+
+\newpage
+Following chart further support my hypothesis:
+
+```{r plot_pay_default_gap_facet_remove, echo=FALSE}
+dat_raw %>% select(DEF_text,PAY_1,PAY_2,PAY_3,PAY_4,PAY_5,PAY_6) %>% gather(PAY,GAP,-DEF_text) %>%
+  filter(GAP>0) %>%
+  ggplot(aes(PAY)) + geom_bar(aes(label=GAP,fill=DEF_text)) + 
+  theme_minimal() +
+  scale_fill_manual(values=c("blue", "red"), name="DEFAULT") +
+  ggtitle("DEFAULT BY PAYMENT PERIOD (REMOVED PAID ON TIME)") + ylab("Count") + xlab("PAYMENT DELAYED") +
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "top") +
+  facet_wrap(~GAP)
+```
+
+\newpage
+## 6.5 PAYON
+The PAY_x above means the number of month of payment delayed. As my analysis is on DEFAULT payment for OCT 2005, I need to take a snopshot of payment status as of OCT 2005, and not after this. I introduce a new variable PAYON which means whether the payment has been done for the past months when the calendar month is OCT 2005.
+
+```{r introduce_payon}
+dat_raw <- dat_raw %>% mutate(PAYON_1 = ifelse(PAY_1>1,1,0),
+                              PAYON_2 = ifelse(PAY_2>2,1,0),
+                              PAYON_3 = ifelse(PAY_3>3,1,0),
+                              PAYON_4 = ifelse(PAY_4>4,1,0),
+                              PAYON_5 = ifelse(PAY_5>5,1,0),
+                              PAYON_6 = ifelse(PAY_6>6,1,0))
+```
+
+From following PAYON chart, it's very obvious that if a client still has not settle payment for SEP 2005 (PAYON_1 =1), he has a high probability of `r comma(sum(dat_raw$PAYON_1==1 & dat_raw$DEFAULT==1)*100 / sum(dat_raw$PAYON_1==1),digits=2)`% of defaulting payment for OCT 2005 (DEFAULT = 1).
+
+```{r plot_payon_default, echo=FALSE}
+dat_payon <- dat_raw %>% select(DEFAULT,PAYON_1,PAYON_2,PAYON_3,PAYON_4,PAYON_5,PAYON_6) %>%
+  gather("PAYON","value", -DEFAULT) %>% filter(value==1) %>%
+  mutate(DEFAULT=ifelse(DEFAULT==1,"YES","NO")) 
+
+dat_payon %>%
+  ggplot(aes(PAYON,fill=DEFAULT), ) + geom_bar() +
+  xlab("Payment Made After OCT") + ylab("Count") + ggtitle("DEFAULT DISTRIBUTION ON PAYMENT MADE AFTER OCT") +
+  scale_fill_manual(values=c("blue", "red", "green", "yellow", "pink", "purple", "orange")) + 
+  theme_minimal() + theme(legend.position = "top", plot.title = element_text(hjust = 0.5))
+```
+
+
+The observation also tells that the probability of defaulting OCT 2005 is highest if the client has yet to pay for SEP 2005 bill, compare with Aug 2005, July 2005 ... April 2005 bills, by a factor of `r sum(dat_payon$PAYON=="PAYON_1") /sum(dat_payon$PAYON=="PAYON_2")` times. This can be explained that the client has more time to pay for past bills compare with Sep 2005 bills. 
+
+\newpage
+The probability of default vs Pay on time for Oct is higher, if a client default on a month. Also, the default probability is higher, if client yet to pay for historical default, as illustrate in following table:
+
+```{r calculate_dat_payon_sum, echo=FALSE}
+dat_payon_sum <- dat_payon %>% 
+  group_by(PAYON,DEFAULT) %>% summarise(count=n()) %>% spread (DEFAULT,count) %>%
+  mutate(MTH_DEFAULT=YES+NO) %>% mutate(PROB_DEFAULT=YES/MTH_DEFAULT) 
+dat_payon_sum %>% knitr::kable(caption="PAYON SUMMARY", digits=4, format.args=list(big.mark=","))
+```
+
+```{r plot_dat_payon_sum, echo=FALSE}
+dat_payon_sum %>% ggplot(aes(PAYON,PROB_DEFAULT)) + geom_point(col="red",size=3) +
+  xlab("MONTH") + ylab("PERCENTAGE") + ggtitle("PROBABILITY OF DEFAULT ON PAYMENT MADE AFTER OCT") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+```
+
+\newpage
+## 6.6 PAYDUE
+Based on above analysis of PAYON_x variables, here I introduce a new variable PAYDUE which is a derived from the probability of a client not paying OCT 2005 Credit Card Bill, PAYON_x. The sum of PAYON_x with weightage is use to value each PAYON contribution to overall probability of DEFAULT.
+
+PAYDUE is derived from the following codes:
+
+``` {r calculate_paydue}
+tmp_PAYDUE <- dat_payon_sum$PROB_DEFAULT/(sum(dat_payon_sum$PROB_DEFAULT))
+dat_raw <- dat_raw %>% mutate(PAYDUE=(as.numeric(PAYON_1)*tmp_PAYDUE[1])+
+                                (PAYON_2*tmp_PAYDUE[2])+
+                                (PAYON_3*tmp_PAYDUE[3])+
+                                (PAYON_4*tmp_PAYDUE[4])+
+                                (PAYON_5*tmp_PAYDUE[5])+
+                                (PAYON_6*tmp_PAYDUE[6]))
+
+```
+``` {r calculate_paydue_print, echo=FALSE}
+tmp_paydue_sample <- dat_raw %>% arrange(desc(PAYDUE)) %>% top_n(200) %>% 
+  select(PAYDUE,PAYON_1,PAYON_2,PAYON_3,PAYON_4,PAYON_5,PAYON_6)
+sample_n(tmp_paydue_sample,10) %>%   knitr::kable(caption="SAMPLE PAYDUE", digits=4,
+                                                  format.args=list(big.mark=","))
+```
+
+\newpage
+From the following PAYDUE Distribution, the possibility of DEFAULT increase when probability of PAYDUE increase:
+
+``` {r plot_paydue_default, echo=FALSE}
+dat_raw %>% # filter(PAYDUE>0) %>%
+  ggplot(aes(DEF_text,PAYDUE)) + geom_violin() +
+  ylim(0,1) +
+  ggtitle("PAYDUE DISTRIBUTION") + xlab("DEFAULT") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5))
+```
+
+\newpage
+Following cross analysis between PAYDUE with CATEGORICAL VARIABLE EDUCATION, SEX & MARRIAGE status presented clear illustration on the relationship between PAYDUE and DEFAULT. 
+
+```{r plot_paydue_filter, echo=FALSE}
+dat_raw %>% # filter(PAYDUE>0) %>%
+  ggplot(aes(DEF_text,PAYDUE)) + geom_violin() +
+  ylim(0,1) +
+  ggtitle("PAYDUE DISTRIBUTION") + xlab("DEFAULT") +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5)) +
+  facet_grid(EDU_text+SEX_text~MAR_text)
+```
+
+\newpage
+## 6.7 Correlation Analysis
+I performed correlation analysis and principal components analysis on numerical fields, and as observed in previous sections, DEFAULT is associate with PAYDUE, and loosely with others (most with reverse effect).
+
+\
+
+```{r corr_analysis_numerical, echo=FALSE}
+dat_raw_sweep <- dat_raw %>% mutate(DEFAULT_N=as.numeric(DEFAULT)) %>%
+  select("DEFAULT_N", "AGE_FAC", "PAYDUE", "LIMIT_BAL",
+         "BILLED_1", "BILLED_2", "BILLED_3",
+         "BILLED_4", "BILLED_5", "BILLED_6",
+         "PAYMENT_1", "PAYMENT_2", "PAYMENT_3",
+         "PAYMENT_4", "PAYMENT_5", "PAYMENT_6")
+dat_raw_sweep <- sweep(dat_raw_sweep, 2, colMeans(dat_raw_sweep))
+
+# Correlation Analysis
+tmp_cor <- cor(dat_raw_sweep)
+corrplot.mixed(
+  tmp_cor,
+  upper = "shade",
+  lower = "number",
+  tl.pos = "lt",
+  tl.col = "black",
+  addCoef.col = "black",
+  number.cex = .6,
+  is.corr = TRUE
+)
+
+```
+
+```{r default_correlation, echo=FALSE}
+tmp_cor[1,] %>%  knitr::kable(caption="DEFAULT CORRELATION", digits=4, format.args=list(big.mark=","))
+```
+
+\newpage
+## 6.8 Revisit Variables Summary
+Let's revisit dataset summary after above manipulations:
+
+```{r variables_summary_revisit, echo=FALSE}
+dfSummary(dat_raw, plain.ascii = FALSE, style = "grid", 
+          graph.magnif = 1, valid.col=FALSE, na.col=FALSE, graph.col=FALSE,
+          tmp.img.dir = "./tmp", round.digits=2)  
+```
+
+\newpage
+`r ###################################################################################`
+# 7 Modeling
+## 7.1 Training & Testing Dataset
+My modeling begins with the separation of dataset into training dataset and testing dataset. The modeling will be performed on the training dataset, and evaluate using test dataset. Following script is used for the preparation of training dataset (dat_train, 80% of data) and testing dataset (dat_test, 20% of data): 
+
+``` {r prepare_dataset}
+set.seed(1, sample.kind = "Rounding")
+tmp_idx_test <- createDataPartition(dat_raw$DEFAULT,times=1,p=0.2,list=FALSE)
+dat_test <- dat_raw[tmp_idx_test,]
+dat_train <- dat_raw[-tmp_idx_test,]
+
+rm(tmp_idx_test)
+```
+
+Number of rows of each dataset are:
+
++ training dataset (`r comma(nrow(dat_train),digits=0)` rows)
++ testing dataset (`r comma(nrow(dat_test),digits=0)` rows)
+
+
+## 7.2 Variables
+Selection of variables for modeling are significant, balancing variable with interest and modeling performance. Based on correlation analysis, many variables are positive correlated, as such after careful evaluation and sampling, my modeling are performing with following variables:
+
+ "DEFAULT"   "LIMIT_BAL" "SEX"       "EDUCATION" "MARRIAGE"  "AGE_FAC"    "PAYDUE"
+ "PAYON_1"    "PAYON_2"   "PAYON_3"   "PAYON_4"   "PAYON_5"   "PAYON_6"
+
+A new training dataset (dat_train_simple) & testing dataset (dat_test_simple) is prepared with only above columns. 
+
+``` {r prepare_dat_train_simple}
+dat_train_simple <- dat_train %>% 
+  select(DEFAULT, LIMIT_BAL, SEX, EDUCATION, MARRIAGE, AGE_FAC, PAYDUE, 
+         PAYON_1, PAYON_2, PAYON_3, PAYON_4, PAYON_5, PAYON_6)
+
+dat_test_simple <- dat_test %>% 
+  select(DEFAULT, LIMIT_BAL, SEX, EDUCATION, MARRIAGE, AGE_FAC, PAYDUE, 
+         PAYON_1, PAYON_2, PAYON_3, PAYON_4, PAYON_5, PAYON_6)
+
+```
+
+
+## 7.3 Result Tibble
+A result tibble is first defined to store the modeling result: 
+
+``` {r prepare_result_tibble}
+result <- tibble(Method = "", 
+                 Accuracy = 0,
+                 Balanced = 0,
+                 Sensitivity = 0,
+                 Specificity = 0,
+                 F1 = 0)
+```
+
+``` {r prepare_printcm_function, echo=FALSE}
+f_printCM <- function(tmp_cm_table){
+  rownames(tmp_cm_table) <- c("Predicted Positive(1)","Predicted Negative(0)")
+  colnames(tmp_cm_table) <- c("Actual Positive(1)","Actual Negative(0)")
+  tmp_cm_table  
+}
+```
+
+
+`r ###################################################################################`
+
+\newpage
+## 7.4 Generalized Linear Model
+Modeling using Generalized Linear Model (GLM) method & the modeling result is as below:
+
+``` {r glm_modeling}
+glm_fit <- train(data=dat_train_simple, DEFAULT~.,method = "glm")
+glm_predicted <- predict(glm_fit, newdata = dat_test)
+glm_cm <- confusionMatrix(factor(glm_predicted),factor(dat_test$DEFAULT))
+```
+
+``` {r glm_modeling_result, echo=FALSE}
+result <- rbind(result, with(glm_cm, 
+                             c(Method = "GLM",
+                               Accuracy = overall["Accuracy"],
+                               Balanced = byClass["Balanced Accuracy"],
+                               Sensitivity = byClass["Sensitivity"],
+                               Specificity = byClass["Specificity"],
+                               F1 = byClass["F1"])))
+
+with(glm_cm, c(Method = "GLM",
+              overall["Accuracy"],
+              byClass["Balanced Accuracy"],
+              byClass["Sensitivity"],
+              byClass["Specificity"],
+              byClass["F1"])) %>%
+  knitr::kable(caption="PREDICTION RESULT USING GLM", digits=4)
+
+```
+
+Following is the predicted Confusion Matrix:
+
+``` {r glm_confusion_table, echo=FALSE}
+f_printCM(glm_cm$table) 
+```
+
+\newpage
+## 7.5 Linear Model
+Modeling using Linear Model (LM) method & the modeling result is as below:
+
+``` {r lm_modeling}
+lm_fit <- lm(DEFAULT~.,
+             data=dat_train_simple)
+lm_predict <- predict(lm_fit, dat_test)
+lm_predicted <- ifelse(lm_predict>1.5,1,0 )
+lm_cm <- confusionMatrix(factor(lm_predicted),factor(dat_test$DEFAULT))
+```
+
+``` {r lm_modeling_result, echo=FALSE}
+result <- rbind(result, with(lm_cm, 
+                             c(Method = "LM",
+                               Accuracy = overall["Accuracy"],
+                               Balanced = byClass["Balanced Accuracy"],
+                               Sensitivity = byClass["Sensitivity"],
+                               Specificity = byClass["Specificity"],
+                               F1 = byClass["F1"])))
+
+with(lm_cm, c(Method = "LM",
+              overall["Accuracy"],
+              byClass["Balanced Accuracy"],
+              byClass["Sensitivity"],
+              byClass["Specificity"],
+              byClass["F1"])) %>%
+  knitr::kable(caption="PREDICTION RESULT USING LM", digits=4)
+
+```
+
+
+Following is the predicted Confusion Matrix:
+
+``` {r lm_confusion_table, echo=FALSE}
+f_printCM(lm_cm$table) 
+```
+
+
+\newpage
+## 7.6 Generalized Additive Model using LOESS
+Modeling using Generalized Additive Model (LOESS) method & the modeling result is as below:
+
+
+
+```{r gamloess_parsedata, eval=TRUE}
+result <- rbind(result, c(Method = "LOESS", Accuracy = 0.824195967338777, Balanced = 0.649950110736118,
+                               Sensitivity = 0.962550823881875, Specificity = 0.337349397590361, F1 = 0.89503531986867))
+```
+
+``` {r gamLoess_modeling, eval=FALSE}
+loess_fit <- train(data=dat_train_simple, DEFAULT~., method = "gamLoess")
+loess_predicted <- predict(loess_fit, dat_test)
+loess_cm <- confusionMatrix(factor(loess_predicted),factor(dat_test$DEFAULT))
+```
+
+``` {r gamLoess_modeling_result, echo=FALSE, eval=FALSE}
+result <- rbind(result, with(loess_cm, 
+                             c(Method = "LOESS",
+                               Accuracy = overall["Accuracy"],
+                               Balanced = byClass["Balanced Accuracy"],
+                               Sensitivity = byClass["Sensitivity"],
+                               Specificity = byClass["Specificity"],
+                               F1 = byClass["F1"])))
+
+with(loess_cm, c(Method = "LOESS",
+              overall["Accuracy"],
+              byClass["Balanced Accuracy"],
+              byClass["Sensitivity"],
+              byClass["Specificity"],
+              byClass["F1"])) %>%
+  knitr::kable(caption="PREDICTION RESULT USING GAMLOESS", digits=4)
+
+```
+
+
+Following is the predicted Confusion Matrix:
+
+``` {r loess_confusion_table, echo=FALSE, eval=FALSE}
+f_printCM(loess_cm$table)
+```
+
+
+\newpage
+## 7.7 K-nearest Neighbors
+Modeling using K-nearest Neighbors method & the modeling result is as below:
+
+
+
+```{r knn_parsedata, eval=TRUE}
+result <- rbind(result,  c(Method = "K-NN", Accuracy = 0.787202132977837, Balanced = 0.535641818289636,
+                               Sensitivity = 0.986946287181682, Specificity = 0.0843373493975904, F1 = 0.878392534044377))
+
+```
+
+``` {r knn_modeling, eval=FALSE}
+set.seed(1,sample.kind = "Rounding")
+knn_control <- trainControl(method = "repeatedcv", number = 10, p = .9, repeats=10)
+knn_fit <- train(data=dat_train_simple, DEFAULT~., method = "knn",
+                 tuneGrid = data.frame(k = seq(3, 21, by=2)),
+                 trControl=knn_control)
+knn_predicted <- predict(knn_fit, dat_test)
+knn_cm <- confusionMatrix(factor(knn_predicted),factor(dat_test$DEFAULT))
+```
+
+
+``` {r knn_modeling_result, echo=FALSE, eval=FALSE}
+result <- rbind(result, with(knn_cm, 
+                             c(Method = "K-NN",
+                               Accuracy = overall["Accuracy"],
+                               Balanced = byClass["Balanced Accuracy"],
+                               Sensitivity = byClass["Sensitivity"],
+                               Specificity = byClass["Specificity"],
+                               F1 = byClass["F1"])))
+
+with(knn_cm, c(Method = "K-NN",
+              overall["Accuracy"],
+              byClass["Balanced Accuracy"],
+              byClass["Sensitivity"],
+              byClass["Specificity"],
+              byClass["F1"])) %>%
+  knitr::kable(caption="PREDICTION RESULT USING K-NN", digits=4)
+
+```
+
+
+Following is the predicted Confusion Matrix:
+
+``` {r knn_confusion_table, echo=FALSE, eval=FALSE}
+f_printCM(knn_cm$table)
+```
+
+
+\newpage
+## 7.8 K-Means Clustering
+Modeling using K-Means Clustering method & the modeling result is as below:
+
+
+```{r kmeans_parsedata, eval=TRUE}
+result <- rbind(result,  c(Method = "K-Means", Accuracy = 0.241959673387769, Balanced = 0.505182456769084,
+                               Sensitivity = 0.0329552749839504, Specificity = 0.977409638554217, F1 = 0.0634136298126416))
+```
+
+``` {r kmeans_modeling, eval=FALSE}
+set.seed(1, sample.kind = "Rounding")
+f_predictkmeans <- function(x, k) {
+  centers <- k$centers    # extract cluster centers
+  # calculate distance to cluster centers
+  distances <- sapply(1:nrow(x), function(i){
+    apply(centers, 1, function(y) dist(rbind(x[i,], y)))
+  })
+  max.col(-t(distances))  # select cluster with min distance to center
+}
+k_means <- kmeans(dat_train_simple[,-1],centers=2)
+k_predict <- f_predictkmeans(dat_test,k_means)
+k_predicted <- ifelse(k_predict>1.5,0,1)
+k_cm <- confusionMatrix(factor(k_predicted),factor(dat_test$DEFAULT))
+```
+
+``` {r kmeans_modeling_result, echo=FALSE, eval=FALSE}
+result <- rbind(result, with(k_cm, 
+                             c(Method = "K-Means",
+                               Accuracy = overall["Accuracy"],
+                               Balanced = byClass["Balanced Accuracy"],
+                               Sensitivity = byClass["Sensitivity"],
+                               Specificity = byClass["Specificity"],
+                               F1 = byClass["F1"])))
+
+
+with(k_cm, c(Method = "K-Means",
+              overall["Accuracy"],
+              byClass["Balanced Accuracy"],
+              byClass["Sensitivity"],
+              byClass["Specificity"],
+              byClass["F1"])) %>%
+  knitr::kable(caption="PREDICTION RESULT USING K-Means", digits=4)
+
+```
+
+
+Following is the predicted Confusion Matrix:
+
+``` {r kmean_confusion_table, echo=FALSE, eval=FALSE}
+f_printCM(k_cm$table)
+```
+
+
+\newpage
+## 7.9 Random Forest
+
+Before performing using Random Forest method, I perform estimation to get the ntree & mtry parameters. 
+
+Search for the optimal value (with respect to Out-of-Bag error estimate) of mtry: 
+
+``` {r randomforest_parsedata_1, eval=TRUE}
+rf_mtry <- c(2,3,4,5,8,10,20,50)
+rf_mtree_optimal <- 1200
+```
+
+``` {r randomforest_modeling_mtree, eval=FALSE}
+set.seed(1,sample.kind = "Rounding")
+
+rf_ntrees <- seq(200,by=200, len=10)
+rf_tuning <- sapply(rf_ntrees, function(nt){
+  t_mtry <- tuneRF(dat_train_simple[,-1],
+                   dat_train_simple$DEFAULT,
+                   stepFactor=1.5, improve=1e-5, ntree=nt,
+                   plot=TRUE,trace=FALSE)
+  t_mtry
+})
+```
+
+``` {r randomforest_modeling_mtree_part2, echo=FALSE, eval=FALSE}
+rf_tuningT <- sapply(rf_tuning, function(rf){rf[1:3,]})[4:6,]
+rf_tuningT <- cbind(c(2,3,4),rf_tuningT)
+rownames(rf_tuningT) <- c(2,3,4)
+colnames(rf_tuningT) <- c("mtry",rf_ntrees)
+
+rf_mtree_optimal <- as.numeric(names(which.min(rf_tuningT[2,])))
+rf_mtry <- c(2,3,4,5,8,10,20,50)
+
+rf_tuningT %>% as.data.frame() %>% gather("ntree","value",-mtry) %>%
+  mutate(ntree=str_sub(paste0("000",ntree),-6,-1)) %>%
+  mutate(mtry=as.factor(mtry)) %>%
+  ggplot(aes(mtry,value)) + geom_point() +
+  ggtitle("RANDOM FOREST MTRY & NTREE PARAMETERS TUNNING") +
+  ylab("OOB ERROR") +
+  geom_hline(yintercept = 0.18125,col="blue", linetype="dashed", size=0.5) +
+  geom_vline(xintercept = 2,col="blue", linetype="dashed", size=0.5) +
+  theme_minimal() + theme(plot.title = element_text(hjust = 0.5)) +
+  facet_wrap(~ntree, strip.position="bottom")
+
+```
+
+Based on above tuning, mtry=3 is found to be the recommended, and mtree=`r rf_mtree_optimal` are the most optimal (with lowest OOB error). By using mtree=`r rf_mtree_optimal`, I retry the simulation with mtry value `r rf_mtry`:
+
+``` {r randomforest_modeling_mtry}
+rf_tuneGrid <- expand.grid(.mtry = rf_mtry)
+rf_metric <- "Accuracy"
+rf_control <- trainControl(method="repeatedcv", number=10, repeats=3, search="random")
+
+rf_fit <- randomForest(data=dat_train_simple, DEFAULT~.,
+                       ntree=rf_mtree_optimal,
+                       metric=rf_metric, 
+                       tuneGrid=rf_tuneGrid, 
+                       trControl=rf_control)
+
+rf_predicted <- predict(rf_fit, dat_test)
+rf_cm <- confusionMatrix(factor(rf_predicted),factor(dat_test$DEFAULT))
+```
+
+``` {r randomforest_modeling_mtry_optimal, echo=FALSE}
+rf_mtry_optimal <- rf_fit$mtry
+```
+
+
+The above estimation reconfirmed that the best mtry=`r rf_mtry_optimal`. Based on these mtry=`r rf_mtry_optimal` & mtree=`r rf_mtree_optimal`, the result of estimation is as below:
+
+``` {r randomforest_modeling_result, echo=FALSE}
+result <- rbind(result, with(rf_cm, 
+                             c(Method = paste0("RF(",rf_mtry_optimal,",",rf_mtree_optimal,")"),
+                               Accuracy = overall["Accuracy"],
+                               Balanced = byClass["Balanced Accuracy"],
+                               Sensitivity = byClass["Sensitivity"],
+                               Specificity = byClass["Specificity"],
+                               F1 = byClass["F1"])))
+
+with(rf_cm, c(Method = "RandomForest",
+              overall["Accuracy"],
+              byClass["Balanced Accuracy"],
+              byClass["Sensitivity"],
+              byClass["Specificity"],
+              byClass["F1"])) %>%
+  knitr::kable(caption="PREDICTION RESULT USING RANDOMFOREST", digits=4)
+
+```
+
+
+Following is the predicted Confusion Matrix:
+
+``` {r rf_confusion_table, echo=FALSE}
+f_printCM(rf_cm$table)
+```
+
+
+Following are list of important variables, according to Random Forest Method:
+
+``` {r randomforest_important, echo=FALSE}
+importance(rf_fit)%>% as.data.frame() %>%
+  arrange(-MeanDecreaseGini) %>% 
+  knitr::kable(caption="MeanDecreaseGini")
+```
+
+
+\newpage
+## 7.10 Gradient Boosting
+Modeling using Gradient Boosting method & the modeling result is as below:
+
+``` {r XGBoost_modeling}
+dat_train_simple_x <- dat_train_simple %>% select(-DEFAULT) %>% data.matrix()
+dat_train_simple_y <- dat_train_simple %>% 
+  mutate(DEFAULT=as.numeric(DEFAULT)-1) %>%
+  select(DEFAULT) %>% data.matrix()
+
+
+dat_test_simple_x <- dat_test_simple %>% select(-DEFAULT) %>% data.matrix()
+dat_test_simple_y <- dat_test_simple %>% 
+  mutate(DEFAULT=as.numeric(DEFAULT)-1) %>%
+  select(DEFAULT) %>% data.matrix()
+
+# PERFORM XGBOOST MODELING
+dat_train_m <- xgb.DMatrix(data = dat_train_simple_x, label= dat_train_simple_y)
+dat_test_m <- xgb.DMatrix(data = dat_test_simple_x, label= dat_test_simple_y)
+
+xg_fit <- xgboost(data = dat_train_m, # the data   
+                  max.depth = 5, # the maximum depth of each decision tree
+                  nround = 1000, # number of boosting rounds
+                  early_stopping_rounds = 10, # stop, if no improvement after rounds 
+                  gamma = 1, # add a regularization term
+                  objective = "binary:logistic",
+                  verbose=0) 
+
+xg_predicted <- predict(xg_fit, dat_test_m)
+xg_cm <- confusionMatrix(factor(ifelse(xg_predicted>0.5,1,0)),factor(dat_test_simple_y))
+```
+
+``` {r XGBoost_modeling_result, echo=FALSE}
+result <- rbind(result, with(xg_cm, 
+                             c(Method = "XGBOOST",
+                               Accuracy = overall["Accuracy"],
+                               Balanced = byClass["Balanced Accuracy"],
+                               Sensitivity = byClass["Sensitivity"],
+                               Specificity = byClass["Specificity"],
+                               F1 = byClass["F1"])))
+
+with(xg_cm, c(Method = "XGBOOST",
+              overall["Accuracy"],
+              byClass["Balanced Accuracy"],
+              byClass["Sensitivity"],
+              byClass["Specificity"],
+              byClass["F1"])) %>%
+  knitr::kable(caption="PREDICTION RESULT USING XGBOOST", digits=4)
+
+```
+
+XG Boost output above is obtained with the best XG Boost score `r xg_fit$best_score`, with ntree = `r xg_fit$best_ntreelimit`  iterations. Below is the train_error estimation of each iteration:
+
+```{r plot_xgboost_train_error, echo=FALSE}
+xg_fit$evaluation_log %>% ggplot(aes(iter,train_error)) + 
+  geom_line() + geom_point(size=2,col="red",shape=22) +
+  theme_minimal() +
+  ggtitle("XG Boost Train Error Calculation") + 
+  ylab("Train Error") + xlab("Iteration") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+Following is the predicted Confusion Matrix:
+
+``` {r xg_confusion_table, echo=FALSE}
+f_printCM(xg_cm$table)
+```
+
+
+Following are list of important variables, according to XGBoost Method:
+
+``` {r xgboost_important, echo=FALSE}
+xgb.importance(model=xg_fit)%>% as.data.frame() %>% 
+  knitr::kable(caption="XGBoost Variables Importancy", digits=4)
+```
+
+
+``` {r parse_result_dataset, echo=FALSE}
+result <- as.matrix(result)
+result <- result[-1,]
+```
+
+
+
+\newpage
+`r ###################################################################################`
+# 8 Intepreting Result
+## 8.1 Variables
+There are total of `r length(names(dat_raw_original))` variables in the original dataset, and `r length(names(dat_raw))` variables in the final dataset I derived. I only uses following variables for my modeling, 
+
+```{r print_simple_variables, echo=FALSE}
+names(dat_train_simple)
+```
+
+and achieved the following output:
+
+```{r print_result_final_simple1, echo=FALSE}
+result %>% as.data.frame() %>% 
+  mutate(Accuracy=as.numeric(Accuracy)) %>%
+  mutate(Balanced=as.numeric(Balanced)) %>%
+  mutate(Sensitivity=as.numeric(Sensitivity)) %>%
+  mutate(Specificity=as.numeric(Specificity)) %>%
+  mutate(F1=as.numeric(F1)) %>%
+  knitr::kable(caption="PREDICTION RESULT", digits=4, format.args=list(big.mark=","))
+```
+
+**Comprehensive Dataset (dat_train_more)**\
+In addition to the "Simplified dataset" *dat_train_simple* that contains `r length(names(dat_train_simple))` variables, I also run my modeling with the "Comprehensive Dataset" *dat_train_more* that prepared using following steps:
+
+```{r prepare_dataset_more}
+nzv <- nearZeroVar(dat_train)
+dat_train_more <- dat_train %>% 
+  select(-all_of(nzv)) %>%
+  select(-c(EDU_text, SEX_text, MAR_text, DEF_text)) %>%
+  select(-AGE)
+```
+
+The full dataset is first examined by removing "Near Zero Variable", following by removing "Convenience Variables" and lastly the AGE variable that superseded by AGE_FAC. The Comprehensive Dataset consists of following `r length(names(dat_train_more))` variables:
+
+```{r print_more_variables, echo=FALSE}
+names(dat_train_more)
+```
+
+The modeling output with Comprehensive Dataset ias as below:
+
+*Modeling using Comprehensive Dataset is performed outside of generation of this document. The full script for performing the modeling is available at APPENDIX A.*
+
+```{r prepare_dataset_more_result, echo=FALSE}
+# Following results are executed separately and NOT re-execute here. 
+# The result can be obtained by executing the script as in Appendix A
+f_result <- function(text){
+  tmp <- sapply(strsplit(text,'|',fixed=TRUE) [[1]],function(x){str_squish(str_trim(x))})[-1]
+  tmp <- t(matrix(tmp,7,ceiling(length(tmp)/7)) [,c(-2,-3)])[,-7]
+  colnames(tmp)<- tmp[1,]
+  tmp <- tmp[-1,]
+  tmp[,2:6] <- as.numeric(tmp[,2:6])
+  tmp
+}
+
+result_more <- f_result("|Method    |Accuracy          |Balanced          |Sensitivity        |Specificity        |F1                 |
+|:---------|:-----------------|:-----------------|:------------------|:------------------|:------------------|
+|          |0                 |0                 |0                  |0                  |0                  |
+|GLM       |0.823029495084153 |0.650548669103979 |0.959982880376632  |0.341114457831325  |0.894159856487941  |
+|LM        |0.824029328445259 |0.654963772272914 |0.958270918039803  |0.351656626506024  |0.894526568118258  |
+|LOESS     |0.822529578403599 |0.648071609141466 |0.96105285683715   |0.335090361445783  |0.893998208420424  |
+|K-NN      |0.775704049325112 |0.532571114760776 |0.968756687352878  |0.0963855421686747 |0.870576923076923  |
+|K-Means   |0.242959506748875 |0.500973291840592 |0.0380911619944361 |0.963855421686747  |0.0726678914064095 |
+|RF(3,800) |0.82102982836194  |0.656810931936606 |0.951423068692489  |0.362198795180723  |0.892233594220349  |
+|XGBOOST   |0.82102982836194  |0.660853557607275 |0.948213139310935  |0.373493975903614  |0.891908212560387  |") 
+result_more %>% as.data.frame() %>% 
+  mutate(Accuracy=as.numeric(Accuracy)) %>%
+  mutate(Balanced=as.numeric(Balanced)) %>%
+  mutate(Sensitivity=as.numeric(Sensitivity)) %>%
+  mutate(Specificity=as.numeric(Specificity)) %>%
+  mutate(F1=as.numeric(F1)) %>%
+  knitr::kable(caption="PREDICTION RESULT (COMPREHENSIVE DATASET)", digits=4, format.args=list(big.mark=","))
+
+```
+
+
+Comparing the achieved modeling output of "Simplified dataset", the output from "Comprehensive Dataset" is less preferred, as shown in following comparison table. As such, I used the simplified dataset result as my primary output.
+
+
+```{r table_result_dataset_comparison, echo=FALSE}
+
+tmp_result_compare <- cbind(result[,1],matrix(as.numeric(result_more[,2:6])-as.numeric(result[,2:6]),7,5))
+colnames(tmp_result_compare) <- colnames(result)
+tmp_result_compare %>% as.data.frame() %>% 
+  mutate(DiffAccuracy       =round(as.numeric(Accuracy),4)) %>%
+  mutate(DiffBalanced       =round(as.numeric(Balanced),4)) %>%
+  mutate(DiffSensitivity    =round(as.numeric(Sensitivity),4)) %>%
+  mutate(DiffSpecificity    =round(as.numeric(Specificity),4)) %>%
+  mutate(DiffF1             =round(as.numeric(F1),4)) %>%
+  mutate(Accuracy           =round(as.numeric(result_more[,2]),4)) %>%
+  mutate(Balanced           =round(as.numeric(result_more[,3]),4)) %>%
+  mutate(Sensitivity        =round(as.numeric(result_more[,4]),4)) %>%
+  mutate(Specificity        =round(as.numeric(result_more[,5]),4)) %>%
+  mutate(F1                 =round(as.numeric(result_more[,6]),4)) %>% t() %>%
+  knitr::kable(caption="COMPARE DATASET PREDICTION RESULT", digits=4, format.args=list(big.mark=","))
+```
+
+
+
+\newpage
+## 8.2 Metric Selection
+There are few metrics as described in previous section that my models have computed and reported. Some models scored high in some metrics, and some others scored high in another. Selection of metric is important to present a more accurate perspective of my analysis outcome.
+
+Mathematically, Accuracy is the sum of correct prediction outcome over total populations, sensitivity and specificity focusing in either True Positive or True Negative, and F-Score is the harmonic mean of sensitivity and specificity. 
+
+Accuracy is always the preferred metric for categorical analysis, however, as the UCI Credit Card Default dataset is imbalance with only `r comma(mean(dat_raw$DEFAULT==1)*100,digits=2)`% "Positive" output (DEFAULT=1), accuracy is not suitable as it does not take into consideration of prevalence of "Positive" output. 
+
+My focus is in predicting the overall possibility of a client Defaulting on OCT 2005 credit card payment, not leaning toward True Positive and True Negative, thus, the balance of these two should be the best metric. As such, I chosen **F-Score** as my primary metric. 
+
+\newpage
+## 8.3 Result Analysis
+As shown in below table and chart, F-Score value for GLM, LM, LOESS, RandomForest & XGBoost are quite close.
+
+```{r print_result_final_Analysis, echo=FALSE}
+result %>% as.data.frame() %>% 
+  mutate(Accuracy=as.numeric(Accuracy)) %>%
+  mutate(Balanced=as.numeric(Balanced)) %>%
+  mutate(Sensitivity=as.numeric(Sensitivity)) %>%
+  mutate(Specificity=as.numeric(Specificity)) %>%
+  mutate(F1=as.numeric(F1)) %>%
+  knitr::kable(caption="PREDICTION RESULT", digits=4, format.args=list(big.mark=","))
+```
+
+``` {r plot_result_simple, echo=FALSE}
+result %>% as.data.frame() %>% gather("Metrix","Value",-Method) %>%
+  mutate(Value=as.numeric(Value)) %>%
+  ggplot(aes(Metrix, Value,col=Method)) + geom_point(aes(shape=Method), size=3) +
+  scale_shape_manual(values = c(15:25)) +
+  theme_minimal() +
+  ggtitle("Method Evaluation") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+From the observation above, I conclude that **`r result[which.max(result[,6]),1]` method** is the best method for predicting a client probability of defaulting Oct 2005 Credit Card billing payment, by having **highest F-Score value of `r comma(max(result[,6]),digits=4)`**.
+
+
+\newpage
+## 8.4 Other Methods
+In addition to above mentioned methods, I also perform estimation on following methods:
+
++ Naive_bayes
++ SVMLinear
++ GAMBoost
++ kknn
++ GAM
++ Ranger
++ WSRF
++ Rborist
++ avNNet
++ MLP
++ monMLP
++ GBM
++ ADABoost
++ SVMRadial
++ SVMRadialCost
++ SVMRadialSigma
+
+Comparing the achieved F-Score on `r result[which.max(result[,6]),1]` method with other models, `r result[which.max(result[,6]),1]` method still output the highest F-Score.
+
+```{r print_result_other_comparison, echo=FALSE}
+# result_other is performed outside of RMARKDOWN as the the modeling processes take more than 4 hours.
+# refer to APPENDIX B, and execute if necessary.
+
+result_other <- f_result(" |Method      |Accuracy          |Balanced          |Sensitivity       |Specificity       |F1                |
+|:-----------|:-----------------|:-----------------|:-----------------|:-----------------|:-----------------|
+|            |0                 |0                 |0                 |0                 |0                 |
+|naive_bayes |0.823529411764706 |0.653025729066491 |0.958912903916114 |0.347138554216867 |0.894321923959685 |
+|svmLinear   |0.623062822862856 |0.58872006321885  |0.650331692702761 |0.52710843373494  |0.728776978417266 |
+|kknn        |0.78770204965839  |0.619240900043573 |0.921463727797988 |0.317018072289157 |0.871130892170747 |
+|gam         |0.823529411764706 |0.650061136908    |0.961266852129253 |0.338855421686747 |0.894553420292741 |
+|ranger      |0.823362772871188 |0.650493156018037 |0.960624866252942 |0.340361445783133 |0.894401275154413 |
+|wsrf        |0.818863522746209 |0.632781258782186 |0.966616734431842 |0.29894578313253  |0.892599545499457 |")
+
+rbind(result[which.max(result[,6]),], result_other) %>% 
+  as.data.frame() %>% 
+  mutate(Accuracy=as.numeric(Accuracy)) %>%
+  mutate(Balanced=as.numeric(Balanced)) %>%
+  mutate(Sensitivity=as.numeric(Sensitivity)) %>%
+  mutate(Specificity=as.numeric(Specificity)) %>%
+  mutate(F1=as.numeric(F1)) %>%
+  knitr::kable(caption="PREDICTION RESULT (OTHER ALGORITHMS)", digits=4, format.args=list(big.mark=","))
+```
+
+``` {r plot_result_other_comparison, echo=FALSE}
+rbind(result[which.max(result[,6]),], result_other)[,c(1,6)] %>% 
+  as.data.frame() %>% mutate(F1=as.numeric(F1)) %>%
+  ggplot(aes(Method, F1,col=Method)) + geom_point(aes(shape=Method), size=3) +
+  geom_text(aes(label=comma(F1,digits=4)),check_overlap = TRUE, vjust=2) +
+  scale_shape_manual(values = c(15:25)) +
+  theme_minimal() +
+  ggtitle("OTHER ALGORITHM EVALUATION") + 
+  theme(plot.title = element_text(hjust = 0.5),legend.position = "na")
+
+```
+
+
+
+\newpage
+`r ###################################################################################`
+# 9 Conclusion
+## 9.1 Brief Summary
+The objective of this report is to apply the knowledge acquired throughout the Harvardx Data Science courses, 
+to analyze the selected UCR Credit Card Default dataset (downloaded from kaggle.com) using Recommendation System approach, and to suggest the best model to predict a client probability of defaulting Oct 2005 credit card bill paymet. To ensure the probability of accurate analysis, I selected and followed the OSEMN Framework standardized process. The process consists of 5 steps, (1) Obtain Data, (2) Scrub Data, (3) Explore Data, (4) Model Data and (5) Intepreting Data.
+
+After evaluating several models and with 2 difference variables set, the **Generalized Linear Model** is found to be the best with **F-score of 89.59%** for predicting the probability of a client defauling on Oct 2005 Credit Card payment.
+
+
+## 9.2 Limitation
+There are few limitation encounters in research, analyze, training and choosing models for the project modeling:
+\
+\
+**Hardware limitation**: The training and modeling are perform on a laptop that has limited memory and processing powers. I have attempted to evaluate others models, but all of them failed due to hardware limitation. This limitation can be overcome with a better hardware or machine.
+\
+\
+**Algorithm limitation**: According to kaggle.com website, the are few modeling that may present a better result. Most of these modeling are performed on specialize program. Apart of these algorithm, there's also other R package that may resulted better accuracy.
+This limitation can be overcome with more details exploration and research.
+
+\
+\
+**Quesionable Dataset**: As discuss in Data Explorarion section, the PAYMENT_x, BILLED_x and BAL_LIMIT variables are contradict and do not make sense from the perspective from Credit Card industry practice. As such, I made decision to use only BAL_LIMIT and drop the other set of variables. Inclusive of all variables include above has also resulted a less preferred F-Score value, compare with the dataset with less variables as discussed.
+The evaluation can improved if a better dataset or a clear definition is provided on above notice abnormality.
+
+## 9.3 Future Works
+More research, analysis, and training of models are needed to get the best result in predicting client defaulting. Following modeling techniques warrants further studies to improve the overall accuracy, 
+
+
+
+\newpage
+`r ###################################################################################`
+# Appendix A: Modeling With "Comprehensive Dataset"
+Following is the full script for executing modeling using "Comprehensive dataset" dat_train_more:
+
+```{r script_dat_more_full, eval=FALSE}
+#............................ . ............................#
+#    COMPREHENSIVE DATASET
+#    - Preparing Script
+#............................ . ............................#
+
+```
+
+\newpage
+# Appendix B: "Modeling Using Other Methods"
+Following are the full script for modeling using following methods:
+
+
+```{r other_modeling, eval=FALSE}
+
+
+```
