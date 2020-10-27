@@ -17,7 +17,7 @@ Data Set use: https://www.kaggle.com/uciml/default-of-credit-card-clients-datase
  [1] "DEFAULT"   "LIMIT_BAL" "SEX"       "EDUCATION" "MARRIAGE"  "AGE_FAC"   "PAYDUE"    "PAYON_1"
  [9] "PAYON_2"   "PAYON_3"   "PAYON_4"   "PAYON_5"   "PAYON_6"
 
-|Method    |Accuracy          |Balanced          |Sensitivity        |Specificity        |F1                 |
+|Method     |Accuracy          |Balanced          |Sensitivity        |Specificity        |F1                 |
 |:----------|:-----------------|:-----------------|:------------------|:------------------|:------------------|
 |           |0                 |0                 |0                  |0                  |0                  |
 |GLM        |0.825362439593401 |0.649082043990213 |0.965332762679221  |0.332831325301205  |0.895928500496524  |
