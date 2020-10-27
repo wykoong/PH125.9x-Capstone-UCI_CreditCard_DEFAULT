@@ -9,15 +9,21 @@ output: pdf_document
 
 
 ```{r setup, include=FALSE}
-library(tidyverse)
-library(caret)
-library(data.table)
-library(formattable)
-library(corrplot)
-library(randomForest)
-library(stringr)
-library(summarytools)
-library(xgboost) # for xgboost
+
+if(!require(tidyverse))   install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret))       install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table))  install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(formattable)) install.packages("formattable", repos = "http://cran.us.r-project.org")
+if(!require(corrplot))    install.packages("corrplot", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(stringr))     install.packages("stringr", repos = "http://cran.us.r-project.org")
+if(!require(xgboost))     install.packages("xgboost", repos = "http://cran.us.r-project.org")
+if(!require(gam))         install.packages("gam", repos = "http://cran.us.r-project.org")
+if(!require(summarytools)) install.packages("summarytools", repos = "http://cran.us.r-project.org")
+if(!require(cluster))     install.packages("cluster", repos = "http://cran.us.r-project.org")
+
+
+ 
 
 options(dplyr.summarise.inform = FALSE) #suppress summarise info
 options(digits = 4)   #default to 5 decimal points
@@ -936,8 +942,8 @@ rm(tmp_age)
 ## 6.5 PAY_1 vs DEFAULT
 Under credit card industry definition, DEFAULT does not happens if the client paid at least the minimal amount before payment due date. This means, if a client default on Sep 2005, it does not means he will also default in Oct 2005, thus:
 
-+ PAY_1 = -1 (default on SEP 2005) does not always DEFAULT = 1 (default on OCT 2005), and
-+ PAY_1 = 1 (pay on time for SEP 2005) does not always DEFAULT = 0 (pay on time for OCT 2005).
++ PAY_1 >= 1 (default on SEP 2005) does not necessary means DEFAULT = 1 (default on OCT 2005), and
++ PAY_1 <= -1 (pay on time for SEP 2005) does not necessary means DEFAULT = 0 (pay on time for OCT 2005).
 
 As following chart shown, a client who pay on time, may still default OCT 2005 payment:
 
@@ -1284,18 +1290,13 @@ Modeling using Generalized Additive Model (LOESS) method & the modeling result i
 
 
 
-```{r gamloess_parsedata, eval=TRUE}
-result <- rbind(result, c(Method = "LOESS", Accuracy = 0.824195967338777, Balanced = 0.649950110736118,
-                               Sensitivity = 0.962550823881875, Specificity = 0.337349397590361, F1 = 0.89503531986867))
-```
-
-``` {r gamLoess_modeling, eval=FALSE}
+``` {r gamLoess_modeling, eval=TRUE}
 loess_fit <- train(data=dat_train_simple, DEFAULT~., method = "gamLoess")
 loess_predicted <- predict(loess_fit, dat_test)
 loess_cm <- confusionMatrix(factor(loess_predicted),factor(dat_test$DEFAULT))
 ```
 
-``` {r gamLoess_modeling_result, echo=FALSE, eval=FALSE}
+``` {r gamLoess_modeling_result, echo=FALSE, eval=TRUE}
 result <- rbind(result, with(loess_cm, 
                              c(Method = "LOESS",
                                Accuracy = overall["Accuracy"],
@@ -1317,7 +1318,7 @@ with(loess_cm, c(Method = "LOESS",
 
 Following is the predicted Confusion Matrix:
 
-``` {r loess_confusion_table, echo=FALSE, eval=FALSE}
+``` {r loess_confusion_table, echo=FALSE, eval=TRUE}
 f_printCM(loess_cm$table)
 ```
 
@@ -1327,14 +1328,7 @@ f_printCM(loess_cm$table)
 Modeling using K-nearest Neighbors method & the modeling result is as below:
 
 
-
-```{r knn_parsedata, eval=TRUE}
-result <- rbind(result,  c(Method = "K-NN", Accuracy = 0.787202132977837, Balanced = 0.535641818289636,
-                               Sensitivity = 0.986946287181682, Specificity = 0.0843373493975904, F1 = 0.878392534044377))
-
-```
-
-``` {r knn_modeling, eval=FALSE}
+``` {r knn_modeling, eval=TRUE}
 set.seed(1,sample.kind = "Rounding")
 knn_control <- trainControl(method = "repeatedcv", number = 10, p = .9, repeats=10)
 knn_fit <- train(data=dat_train_simple, DEFAULT~., method = "knn",
@@ -1345,7 +1339,7 @@ knn_cm <- confusionMatrix(factor(knn_predicted),factor(dat_test$DEFAULT))
 ```
 
 
-``` {r knn_modeling_result, echo=FALSE, eval=FALSE}
+``` {r knn_modeling_result, echo=FALSE, eval=TRUE}
 result <- rbind(result, with(knn_cm, 
                              c(Method = "K-NN",
                                Accuracy = overall["Accuracy"],
@@ -1367,7 +1361,7 @@ with(knn_cm, c(Method = "K-NN",
 
 Following is the predicted Confusion Matrix:
 
-``` {r knn_confusion_table, echo=FALSE, eval=FALSE}
+``` {r knn_confusion_table, echo=FALSE, eval=TRUE}
 f_printCM(knn_cm$table)
 ```
 
@@ -1377,12 +1371,7 @@ f_printCM(knn_cm$table)
 Modeling using K-Means Clustering method & the modeling result is as below:
 
 
-```{r kmeans_parsedata, eval=TRUE}
-result <- rbind(result,  c(Method = "K-Means", Accuracy = 0.241959673387769, Balanced = 0.505182456769084,
-                               Sensitivity = 0.0329552749839504, Specificity = 0.977409638554217, F1 = 0.0634136298126416))
-```
-
-``` {r kmeans_modeling, eval=FALSE}
+``` {r kmeans_modeling, eval=TRUE}
 set.seed(1, sample.kind = "Rounding")
 f_predictkmeans <- function(x, k) {
   centers <- k$centers    # extract cluster centers
@@ -1398,7 +1387,7 @@ k_predicted <- ifelse(k_predict>1.5,0,1)
 k_cm <- confusionMatrix(factor(k_predicted),factor(dat_test$DEFAULT))
 ```
 
-``` {r kmeans_modeling_result, echo=FALSE, eval=FALSE}
+``` {r kmeans_modeling_result, echo=FALSE, eval=TRUE}
 result <- rbind(result, with(k_cm, 
                              c(Method = "K-Means",
                                Accuracy = overall["Accuracy"],
@@ -1421,7 +1410,7 @@ with(k_cm, c(Method = "K-Means",
 
 Following is the predicted Confusion Matrix:
 
-``` {r kmean_confusion_table, echo=FALSE, eval=FALSE}
+``` {r kmean_confusion_table, echo=FALSE, eval=TRUE}
 f_printCM(k_cm$table)
 ```
 
@@ -1433,12 +1422,7 @@ Before performing using Random Forest method, I perform estimation to get the nt
 
 Search for the optimal value (with respect to Out-of-Bag error estimate) of mtry: 
 
-``` {r randomforest_parsedata_1, eval=TRUE}
-rf_mtry <- c(2,3,4,5,8,10,20,50)
-rf_mtree_optimal <- 1200
-```
-
-``` {r randomforest_modeling_mtree, eval=FALSE}
+``` {r randomforest_modeling_mtree, eval=TRUE}
 set.seed(1,sample.kind = "Rounding")
 
 rf_ntrees <- seq(200,by=200, len=10)
@@ -1446,12 +1430,12 @@ rf_tuning <- sapply(rf_ntrees, function(nt){
   t_mtry <- tuneRF(dat_train_simple[,-1],
                    dat_train_simple$DEFAULT,
                    stepFactor=1.5, improve=1e-5, ntree=nt,
-                   plot=TRUE,trace=FALSE)
+                   plot=FALSE,trace=FALSE)
   t_mtry
 })
 ```
 
-``` {r randomforest_modeling_mtree_part2, echo=FALSE, eval=FALSE}
+``` {r randomforest_modeling_mtree_part2, echo=FALSE, eval=TRUE}
 rf_tuningT <- sapply(rf_tuning, function(rf){rf[1:3,]})[4:6,]
 rf_tuningT <- cbind(c(2,3,4),rf_tuningT)
 rownames(rf_tuningT) <- c(2,3,4)
@@ -1698,20 +1682,23 @@ Comparing the achieved modeling output of "Simplified dataset", the output from 
 
 
 ```{r table_result_dataset_comparison, echo=FALSE}
-
 tmp_result_compare <- cbind(result[,1],matrix(as.numeric(result_more[,2:6])-as.numeric(result[,2:6]),7,5))
 colnames(tmp_result_compare) <- colnames(result)
-tmp_result_compare %>% as.data.frame() %>% 
+rownames(tmp_result_compare) <- result[,1]
+tmp_result_compare <- tmp_result_compare %>% 
+  as.data.frame() %>% 
   mutate(DiffAccuracy       =round(as.numeric(Accuracy),4)) %>%
   mutate(DiffBalanced       =round(as.numeric(Balanced),4)) %>%
   mutate(DiffSensitivity    =round(as.numeric(Sensitivity),4)) %>%
   mutate(DiffSpecificity    =round(as.numeric(Specificity),4)) %>%
-  mutate(DiffF1             =round(as.numeric(F1),4)) %>%
+  mutate(DiffF1             =round(as.numeric(F1),4)) %>% 
   mutate(Accuracy           =round(as.numeric(result_more[,2]),4)) %>%
   mutate(Balanced           =round(as.numeric(result_more[,3]),4)) %>%
   mutate(Sensitivity        =round(as.numeric(result_more[,4]),4)) %>%
   mutate(Specificity        =round(as.numeric(result_more[,5]),4)) %>%
-  mutate(F1                 =round(as.numeric(result_more[,6]),4)) %>% t() %>%
+  mutate(F1                 =round(as.numeric(result_more[,6]),4)) %>% t() 
+colnames(tmp_result_compare) <- tmp_result_compare[1,]
+tmp_result_compare[-1,] %>%
   knitr::kable(caption="COMPARE DATASET PREDICTION RESULT", digits=4, format.args=list(big.mark=","))
 ```
 
@@ -1760,7 +1747,6 @@ In addition to above mentioned methods, I also perform estimation on following m
 
 + Naive_bayes
 + SVMLinear
-+ GAMBoost
 + kknn
 + GAM
 + Ranger
@@ -1781,15 +1767,24 @@ Comparing the achieved F-Score on `r result[which.max(result[,6]),1]` method wit
 # result_other is performed outside of RMARKDOWN as the the modeling processes take more than 4 hours.
 # refer to APPENDIX B, and execute if necessary.
 
-result_other <- f_result(" |Method      |Accuracy          |Balanced          |Sensitivity       |Specificity       |F1                |
-|:-----------|:-----------------|:-----------------|:-----------------|:-----------------|:-----------------|
-|            |0                 |0                 |0                 |0                 |0                 |
-|naive_bayes |0.823529411764706 |0.653025729066491 |0.958912903916114 |0.347138554216867 |0.894321923959685 |
-|svmLinear   |0.623062822862856 |0.58872006321885  |0.650331692702761 |0.52710843373494  |0.728776978417266 |
-|kknn        |0.78770204965839  |0.619240900043573 |0.921463727797988 |0.317018072289157 |0.871130892170747 |
-|gam         |0.823529411764706 |0.650061136908    |0.961266852129253 |0.338855421686747 |0.894553420292741 |
-|ranger      |0.823362772871188 |0.650493156018037 |0.960624866252942 |0.340361445783133 |0.894401275154413 |
-|wsrf        |0.818863522746209 |0.632781258782186 |0.966616734431842 |0.29894578313253  |0.892599545499457 |")
+result_other <- f_result("  |Method        |Accuracy          |Balanced          |Sensitivity       |Specificity       |F1                |
+|:--------------|:-----------------|:-----------------|:-----------------|:-----------------|:-----------------|
+|               |0                 |0                 |0                 |0                 |0                 |
+|naive_bayes    |0.823529411764706 |0.653025729066491 |0.958912903916114 |0.347138554216867 |0.894321923959685 |
+|svmLinear      |0.623062822862856 |0.58872006321885  |0.650331692702761 |0.52710843373494  |0.728776978417266 |
+|kknn           |0.78770204965839  |0.619240900043573 |0.921463727797988 |0.317018072289157 |0.871130892170747 |
+|gam            |0.823529411764706 |0.650061136908    |0.961266852129253 |0.338855421686747 |0.894553420292741 |
+|ranger         |0.823362772871188 |0.650493156018037 |0.960624866252942 |0.340361445783133 |0.894401275154413 |
+|wsrf           |0.818863522746209 |0.632781258782186 |0.966616734431842 |0.29894578313253  |0.892599545499457 |
+|Rborist        |0.823529411764706 |0.653025729066491 |0.958912903916114 |0.347138554216867 |0.894321923959685 |
+|avNNet         |0.825362439593401 |0.653663686416971 |0.96169484271346  |0.345632530120482 |0.89557592666401  |
+|mlp            |0.778703549408432 |0.5               |1                 |0                 |0.875585534944726 |
+|monmlp         |0.824529245125812 |0.653128698186712 |0.960624866252942 |0.345632530120482 |0.895025421194298 |
+|gbm            |0.824195967338777 |0.652106177760475 |0.960838861545046 |0.343373493975904 |0.894867962132536 |
+|adaboost       |0.734210964839193 |0.630441571550486 |0.816606034667237 |0.444277108433735 |0.827137747913732 |
+|svmRadial      |0.778703549408432 |0.5               |1                 |0                 |0.875585534944726 |
+|svmRadialCost  |0.778703549408432 |0.5               |1                 |0                 |0.875585534944726 |
+|svmRadialSigma |0.778703549408432 |0.5               |1                 |0                 |0.875585534944726 |")
 
 rbind(result[which.max(result[,6]),], result_other) %>% 
   as.data.frame() %>% 
@@ -1806,10 +1801,11 @@ rbind(result[which.max(result[,6]),], result_other)[,c(1,6)] %>%
   as.data.frame() %>% mutate(F1=as.numeric(F1)) %>%
   ggplot(aes(Method, F1,col=Method)) + geom_point(aes(shape=Method), size=3) +
   geom_text(aes(label=comma(F1,digits=4)),check_overlap = TRUE, vjust=2) +
-  scale_shape_manual(values = c(15:25)) +
+  scale_shape_manual(values = c(2:25)) +
   theme_minimal() +
   ggtitle("OTHER ALGORITHM EVALUATION") + 
-  theme(plot.title = element_text(hjust = 0.5),legend.position = "na")
+  theme(plot.title = element_text(hjust = 0.5),legend.position = "na", 
+        axis.text.x = element_text(angle = 90, hjust = 1))
 
 ```
 
@@ -1818,14 +1814,17 @@ rbind(result[which.max(result[,6]),], result_other)[,c(1,6)] %>%
 \newpage
 `r ###################################################################################`
 # 9 Conclusion
-## 9.1 Brief Summary
+
 The objective of this report is to apply the knowledge acquired throughout the Harvardx Data Science courses, 
 to analyze the selected UCR Credit Card Default dataset (downloaded from kaggle.com) using Recommendation System approach, and to suggest the best model to predict a client probability of defaulting Oct 2005 credit card bill paymet. To ensure the probability of accurate analysis, I selected and followed the OSEMN Framework standardized process. The process consists of 5 steps, (1) Obtain Data, (2) Scrub Data, (3) Explore Data, (4) Model Data and (5) Intepreting Data.
 
-After evaluating several models and with 2 difference variables set, the **Generalized Linear Model** is found to be the best with **F-score of 89.59%** for predicting the probability of a client defauling on Oct 2005 Credit Card payment.
+After evaluating several models and with 2 difference variables set, the **Generalized Linear Model** is found to be the best with **F-score of 89.59%** for predicting the probability of a client defauling on Oct 2005 Credit Card payment, with the "Simplified Dataset" with following variables:
 
+``` {r print_data_simple_dataset, echo=FALSE}
+names(dat_train_simple)
+```
 
-## 9.2 Limitation
+## 9.1 Limitation
 There are few limitation encounters in research, analyze, training and choosing models for the project modeling:
 \
 \
@@ -1840,7 +1839,7 @@ This limitation can be overcome with more details exploration and research.
 **Quesionable Dataset**: As discuss in Data Explorarion section, the PAYMENT_x, BILLED_x and BAL_LIMIT variables are contradict and do not make sense from the perspective from Credit Card industry practice. As such, I made decision to use only BAL_LIMIT and drop the other set of variables. Inclusive of all variables include above has also resulted a less preferred F-Score value, compare with the dataset with less variables as discussed.
 The evaluation can improved if a better dataset or a clear definition is provided on above notice abnormality.
 
-## 9.3 Future Works
+## 9.2 Future Works
 More research, analysis, and training of models are needed to get the best result in predicting client defaulting. Following modeling techniques warrants further studies to improve the overall accuracy, 
 
 
@@ -1856,6 +1855,265 @@ Following is the full script for executing modeling using "Comprehensive dataset
 #    - Preparing Script
 #............................ . ............................#
 
+sink(paste0("modeling-dat_train_more-",format(Sys.Date(),"%Y%m%d"),".log"), 
+     append=FALSE, split=TRUE)
+Sys.Date()
+
+nzv <- nearZeroVar(dat_train)
+dat_train_more <- dat_train %>% 
+  select(-all_of(nzv)) %>%
+  select(-c(EDU_text, SEX_text, MAR_text, DEF_text)) %>%
+  select(-AGE)
+
+dat_test_more <- dat_test %>% 
+  select(-all_of(nzv)) %>%
+  select(-c(EDU_text, SEX_text, MAR_text, DEF_text)) %>%
+  select(-AGE)
+
+#---------------------------- . ----------------------------#
+
+result_more <- tibble(Method = "", 
+                      Accuracy = 0,
+                      Balanced = 0,
+                      Sensitivity = 0,
+                      Specificity = 0,
+                      F1 = 0)
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING LOGISTIC REGRESSION 
+#---------------------------- . ----------------------------#
+
+glm_fit <- train(data=dat_train_more, DEFAULT~.,method = "glm")
+glm_predicted <- predict(glm_fit, newdata = dat_test)
+glm_cm <- confusionMatrix(factor(glm_predicted),factor(dat_test$DEFAULT))
+
+result_more <- rbind(result_more, with(glm_cm, 
+                                       c(Method = "GLM",
+                                         Accuracy = overall["Accuracy"],
+                                         Balanced = byClass["Balanced Accuracy"],
+                                         Sensitivity = byClass["Sensitivity"],
+                                         Specificity = byClass["Specificity"],
+                                         F1 = byClass["F1"])))
+result_more %>% knitr::kable(caption="PREDICTION ACCURACY", digits=4)
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING LM 
+#---------------------------- . ----------------------------#
+lm_fit <- lm(DEFAULT~.,
+             data=dat_train_more)
+lm_predict <- predict(lm_fit, dat_test)
+lm_predicted <- ifelse(lm_predict>1.5,1,0 )
+lm_cm <- confusionMatrix(factor(lm_predicted),factor(dat_test$DEFAULT))
+
+result_more <- rbind(result_more, with(lm_cm, 
+                                       c(Method = "LM",
+                                         Accuracy = overall["Accuracy"],
+                                         Balanced = byClass["Balanced Accuracy"],
+                                         Sensitivity = byClass["Sensitivity"],
+                                         Specificity = byClass["Specificity"],
+                                         F1 = byClass["F1"])))
+result_more %>% knitr::kable(caption="PREDICTION ACCURACY", digits=4)
+
+#---------------------------- . ----------------------------#
+#    PREDICT LOESS 
+#---------------------------- . ----------------------------#
+loess_fit <- train(data=dat_train_more, DEFAULT~., method = "gamLoess")
+loess_predicted <- predict(loess_fit, dat_test)
+loess_cm <- confusionMatrix(factor(loess_predicted),factor(dat_test$DEFAULT))
+
+result_more <- rbind(result_more, with(loess_cm, 
+                                       c(Method = "LOESS",
+                                         Accuracy = overall["Accuracy"],
+                                         Balanced = byClass["Balanced Accuracy"],
+                                         Sensitivity = byClass["Sensitivity"],
+                                         Specificity = byClass["Specificity"],
+                                         F1 = byClass["F1"])))
+result_more %>% knitr::kable(caption="PREDICTION ACCURACY", digits=4)
+
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT KNN 
+#---------------------------- . ----------------------------#
+set.seed(1,sample.kind = "Rounding")
+knn_control <- trainControl(method = "repeatedcv", number = 10, p = .9, repeats=10)
+knn_fit <- train(data=dat_train_more, DEFAULT~., method = "knn",
+                 tuneGrid = data.frame(k = seq(3, 21, by=2)),
+                 trControl=knn_control)
+knn_predicted <- predict(knn_fit, dat_test)
+knn_cm <- confusionMatrix(factor(knn_predicted),factor(dat_test$DEFAULT))
+
+result_more <- rbind(result_more, with(knn_cm, 
+                                       c(Method = "K-NN",
+                                         Accuracy = overall["Accuracy"],
+                                         Balanced = byClass["Balanced Accuracy"],
+                                         Sensitivity = byClass["Sensitivity"],
+                                         Specificity = byClass["Specificity"],
+                                         F1 = byClass["F1"])))
+result_more %>% knitr::kable(caption="PREDICTION ACCURACY", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT K-MEANS 
+#---------------------------- . ----------------------------#
+set.seed(1, sample.kind = "Rounding")
+f_predictkmeans <- function(x, k) {
+  centers <- k$centers    # extract cluster centers
+  # calculate distance to cluster centers
+  distances <- sapply(1:nrow(x), function(i){
+    apply(centers, 1, function(y) dist(rbind(x[i,], y)))
+  })
+  max.col(-t(distances))  # select cluster with min distance to center
+}
+k_means <- kmeans(dat_train_more[,-1],centers=2)
+k_predict <- f_predictkmeans(dat_test,k_means)
+k_predicted <- ifelse(k_predict>1.5,0,1)
+k_cm <- confusionMatrix(factor(k_predicted),factor(dat_test$DEFAULT))
+
+result_more <- rbind(result_more, with(k_cm, 
+                                       c(Method = "K-Means",
+                                         Accuracy = overall["Accuracy"],
+                                         Balanced = byClass["Balanced Accuracy"],
+                                         Sensitivity = byClass["Sensitivity"],
+                                         Specificity = byClass["Specificity"],
+                                         F1 = byClass["F1"])))
+result_more %>% knitr::kable(caption="PREDICTION ACCURACY", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING RANDOM FOREST 
+#    - mtry: Number of variables randomly sampled as candidates at each split.
+#    - ntree: Number of trees to grow.
+#    - various mtry & ntree values combination are explored to reach the range as below 
+#---------------------------- . ----------------------------#
+
+# First, find the best parameter for RF
+# 
+# set.seed(1,sample.kind = "Rounding")
+# 
+# rf_ntrees <- seq(200,by=200, len=10)
+# rf_tuning <- sapply(rf_ntrees, function(nt){
+#   t_mtry <- tuneRF(dat_train_more[,-1], 
+#                    dat_train_more$DEFAULT,
+#                    stepFactor=1.5, improve=1e-5, ntree=nt, 
+#                    plot=TRUE,trace=FALSE)
+#   t_mtry
+# })
+# 
+# 
+# rf_tuningT <- cbind(rf_tuning[[x1]][1:3,],ntree=rep(3,rf_ntrees[x]))
+# rep(2:10,function(x){
+#     rf_tuningT <- rbind(rf_tuningT, cbind(rf_tuning[[x]][1:3,],ntree=rep(3,rf_ntrees[x])))
+# })
+# 
+# x=5
+# rf_tuningT <- rbind(rf_tuningT, cbind(rf_tuning[[x]][1:3,],ntree=rep(3,rf_ntrees[x])))
+# rf_ntrees[4]
+# rf_tuning
+# rownames(rf_tuning) <- c(2,3,4)
+# colnames(rf_tuning) <- rf_ntrees
+# rf_tuning <- cbind(rf_tuning,mtry=c(2,3,4))
+# 
+# # t_mtry <- tuneRF(dat_train_more[,-1], 
+# #                  dat_train_more$DEFAULT,
+# #                  stepFactor=1.5, improve=1e-5, ntreeTry=1200, 
+# #                  plot=TRUE,trace=TRUE,doBest=TRUE)
+# 
+# rf_tuning %>% as.data.frame() %>% gather("ntree","value",-mtry) %>%
+#   mutate(ntree=str_sub(paste0("000",ntree),-6,-1)) %>%
+#   mutate(mtry=as.factor(mtry)) %>%
+#   ggplot(aes(mtry,value)) + geom_point() + 
+#   ggtitle("RANDOM FOREST MTRY & NTREE PARAMETERS TUNNING") +
+#   ylab("OOB ERROR") + 
+#   geom_hline(yintercept = 0.18125,col="blue", linetype="dashed", size=0.5) +
+#   geom_vline(xintercept = 2,col="blue", linetype="dashed", size=0.5) +
+#   theme_minimal() + theme(plot.title = element_text(hjust = 0.5)) +
+#   facet_wrap(~ntree, strip.position="bottom")
+
+#----------------
+# Based on above chart, as mtry=3 is more consistent as recommended, 
+# I selected mtry=3, ntree=800, mtry=3 is further confirm with following 
+
+rf_tuneGrid <- expand.grid(.mtry = c(2,3,4,5,8,10,20,50))
+rf_metric <- "Accuracy"
+rf_control <- trainControl(method="repeatedcv", number=10, repeats=3, search="random")
+
+rf_fit <- randomForest(data=dat_train_more, DEFAULT~.,
+                       ntree=800,
+                       metric=rf_metric, 
+                       tuneGrid=rf_tuneGrid, 
+                       trControl=rf_control)
+
+rf_predicted <- predict(rf_fit, dat_test)
+rf_cm <- confusionMatrix(factor(rf_predicted),factor(dat_test$DEFAULT))
+
+result_more <- rbind(result_more, with(rf_cm, 
+                                       c(Method = "RF(3,800)",
+                                         Accuracy = overall["Accuracy"],
+                                         Balanced = byClass["Balanced Accuracy"],
+                                         Sensitivity = byClass["Sensitivity"],
+                                         Specificity = byClass["Specificity"],
+                                         F1 = byClass["F1"])))
+result_more %>% knitr::kable(caption="PREDICTION ACCURACY", digits=4)
+
+
+# -----------------------------------------------------
+# STUDY IMPORTANT of VARIABLE
+importance(rf_fit)%>% as.data.frame() %>%
+  arrange(-MeanDecreaseGini) %>% 
+  knitr::kable(caption="MeanDecreaseGini")
+
+
+
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING XGBOOST 
+#---------------------------- . ----------------------------#
+
+dat_train_more_x <- dat_train_more %>% select(-DEFAULT) %>% data.matrix()
+dat_train_more_y <- dat_train_more %>% 
+  mutate(DEFAULT=as.numeric(DEFAULT)-1) %>%
+  select(DEFAULT) %>% data.matrix()
+
+
+dat_test_more_x <- dat_test_more %>% select(-DEFAULT) %>% data.matrix()
+dat_test_more_y <- dat_test_more %>% 
+  mutate(DEFAULT=as.numeric(DEFAULT)-1) %>%
+  select(DEFAULT) %>% data.matrix()
+
+# PERFORM XGBOOST MODELING
+dat_train_m <- xgb.DMatrix(data = dat_train_more_x, label= dat_train_more_y)
+dat_test_m <- xgb.DMatrix(data = dat_test_more_x, label= dat_test_more_y)
+
+xg_fit <- xgboost(data = dat_train_m, # the data   
+                  max.depth = 5, # the maximum depth of each decision tree
+                  nround = 1000, # number of boosting rounds
+                  early_stopping_rounds = 10, # if we dont see an improvement in this many rounds, stop
+                  #scale_pos_weight = sum(dat_train_simple_y==1)/sum(dat_train_simple_y==0), # control for imbalanced classes
+                  gamma = 1, # add a regularization term
+                  objective = "binary:logistic") 
+
+xg_predicted <- predict(xg_fit, dat_test_m)
+xg_cm <- confusionMatrix(factor(ifelse(xg_predicted>0.5,1,0)),factor(dat_test_more_y))
+
+xgb.importance(model=xg_fit)
+
+
+result_more <- rbind(result_more, with(xg_cm, 
+                                       c(Method = "XGBOOST",
+                                         Accuracy = overall["Accuracy"],
+                                         Balanced = byClass["Balanced Accuracy"],
+                                         Sensitivity = byClass["Sensitivity"],
+                                         Specificity = byClass["Specificity"],
+                                         F1 = byClass["F1"])))
+result_more %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+#---------------------------- . ----------------------------#
+#    CONSOLIDATE PREDICTED RESULT 
+#---------------------------- . ----------------------------#
+result_more %>% knitr::kable(caption="PREDICTION RESULT", digits=4, format.args=list(big.mark=","))
+
 ```
 
 \newpage
@@ -1865,5 +2123,315 @@ Following are the full script for modeling using following methods:
 
 ```{r other_modeling, eval=FALSE}
 
+
+#............................ . ............................#
+#    SIMPLIFIED DATASET
+#............................ . ............................#
+
+sink(paste0("modeling-dat_train-other-",format(Sys.Date(),"%Y%m%d"),".log"), 
+     append=FALSE, split=TRUE)
+
+# [1] "DEFAULT"   "LIMIT_BAL" "SEX"       "EDUCATION" "MARRIAGE"  "AGE_FAC"   "PAYDUE"    "PAYON_1"  
+# [9] "PAYON_2"   "PAYON_3"   "PAYON_4"   "PAYON_5"   "PAYON_6" 
+
+dat_train_simple <- dat_train %>% 
+  select(DEFAULT, LIMIT_BAL, SEX, EDUCATION, MARRIAGE, AGE_FAC, PAYDUE, 
+         PAYON_1, PAYON_2, PAYON_3, PAYON_4, PAYON_5, PAYON_6)
+
+dat_test_simple <- dat_test %>% 
+  select(DEFAULT, LIMIT_BAL, SEX, EDUCATION, MARRIAGE, AGE_FAC, PAYDUE, 
+         PAYON_1, PAYON_2, PAYON_3, PAYON_4, PAYON_5, PAYON_6)
+
+names(dat_train_simple)    #13 variables
+
+#---------------------------- . ----------------------------#
+
+result_other <- tibble(Method = "", 
+                       Accuracy = 0,
+                       Balanced = 0,
+                       Sensitivity = 0,
+                       Specificity = 0,
+                       F1 = 0)
+
+
+names(dat_train_simple)
+
+############################# . #############################
+#    MODELING USING OTHER APPROACH
+#    - USE DEFAULT PARAMETER
+#    - "naive_bayes", "svmLinear",  "kknn", "loclda", "gam", 
+#      "ranger","wsrf", "Rborist", "avNNet", "mlp", "monmlp", "gbm",
+#      "adaboost", "svmRadial", "svmRadialCost", "svmRadialSigma"
+############################# . #############################
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING naive_bayes
+#---------------------------- . ----------------------------#
+nb_fit <- train(data=dat_train_simple, DEFAULT~.,
+                method = "naive_bayes")
+nb_predicted <- predict(nb_fit, dat_test)
+nb_cm <- confusionMatrix(factor(nb_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(nb_cm, 
+                                         c(Method = "naive_bayes",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING svmLinear
+#---------------------------- . ----------------------------#
+svml_fit <- train(data=dat_train_simple, DEFAULT~.,
+                  method = "svmLinear")
+svml_predicted <- predict(svml_fit, dat_test)
+svml_cm <- confusionMatrix(factor(svml_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(svml_cm, 
+                                         c(Method = "svmLinear",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING kknn
+#---------------------------- . ----------------------------#
+kknn_fit <- train(data=dat_train_simple, DEFAULT~.,
+                  method = "kknn")
+kknn_predicted <- predict(kknn_fit, dat_test)
+kknn_cm <- confusionMatrix(factor(kknn_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(kknn_cm, 
+                                         c(Method = "kknn",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING gam
+#---------------------------- . ----------------------------#
+gam_fit <- train(data=dat_train_simple, DEFAULT~.,
+                 method = "gam")
+gam_predicted <- predict(gam_fit, dat_test)
+gam_cm <- confusionMatrix(factor(gam_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(gam_cm, 
+                                         c(Method = "gam",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING ranger
+#---------------------------- . ----------------------------#
+ranger_fit <- train(data=dat_train_simple, DEFAULT~.,
+                    method = "ranger")
+ranger_predicted <- predict(ranger_fit, dat_test)
+ranger_cm <- confusionMatrix(factor(ranger_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(ranger_cm, 
+                                         c(Method = "ranger",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING wsrf
+#---------------------------- . ----------------------------#
+wsrf_fit <- train(data=dat_train_simple, DEFAULT~.,
+                  method = "wsrf")
+wsrf_predicted <- predict(wsrf_fit, dat_test)
+wsrf_cm <- confusionMatrix(factor(wsrf_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(wsrf_cm, 
+                                         c(Method = "wsrf",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING Rborist
+#---------------------------- . ----------------------------#
+Rbor_fit <- train(data=dat_train_simple, DEFAULT~.,
+                  method = "Rborist")
+Rbor_predicted <- predict(Rbor_fit, dat_test)
+Rbor_cm <- confusionMatrix(factor(Rbor_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(Rbor_cm, 
+                                         c(Method = "Rborist",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING avNNet
+#---------------------------- . ----------------------------#
+avNNet_fit <- train(data=dat_train_simple, DEFAULT~.,
+                    method = "avNNet")
+avNNet_predicted <- predict(avNNet_fit, dat_test)
+avNNet_cm <- confusionMatrix(factor(avNNet_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(avNNet_cm, 
+                                         c(Method = "avNNet",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING mlp
+#---------------------------- . ----------------------------#
+mlp_fit <- train(data=dat_train_simple, DEFAULT~.,
+                 method = "mlp")
+mlp_predicted <- predict(mlp_fit, dat_test)
+mlp_cm <- confusionMatrix(factor(mlp_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(mlp_cm, 
+                                         c(Method = "mlp",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING monmlp
+#---------------------------- . ----------------------------#
+monmlp_fit <- train(data=dat_train_simple, DEFAULT~.,
+                    method = "monmlp")
+monmlp_predicted <- predict(monmlp_fit, dat_test)
+monmlp_cm <- confusionMatrix(factor(monmlp_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(monmlp_cm, 
+                                         c(Method = "monmlp",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING gbm
+#---------------------------- . ----------------------------#
+gbm_fit <- train(data=dat_train_simple, DEFAULT~.,
+                 method = "gbm")
+gbm_predicted <- predict(gbm_fit, dat_test)
+gbm_cm <- confusionMatrix(factor(gbm_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(gbm_cm, 
+                                         c(Method = "gbm",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING adaboost
+#---------------------------- . ----------------------------#
+adab_fit <- train(data=dat_train_simple, DEFAULT~.,
+                  method = "adaboost")
+adab_predicted <- predict(adab_fit, dat_test)
+adab_cm <- confusionMatrix(factor(adab_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(adab_cm, 
+                                         c(Method = "adaboost",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING svmRadial
+#---------------------------- . ----------------------------#
+svmr_fit <- train(data=dat_train_simple, DEFAULT~.,
+                  method = "svmRadial")
+svmr_predicted <- predict(svmr_fit, dat_test)
+svmr_cm <- confusionMatrix(factor(svmr_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(svmr_cm, 
+                                         c(Method = "svmRadial",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING svmRadialCost
+#---------------------------- . ----------------------------#
+svmrc_fit <- train(data=dat_train_simple, DEFAULT~.,
+                   method = "svmRadialCost")
+svmrc_predicted <- predict(svmrc_fit, dat_test)
+svmrc_cm <- confusionMatrix(factor(svmrc_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(svmrc_cm, 
+                                         c(Method = "svmRadialCost",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
+
+
+#---------------------------- . ----------------------------#
+#    PREDICT USING svmRadialSigma
+#---------------------------- . ----------------------------#
+svmrs_fit <- train(data=dat_train_simple, DEFAULT~.,
+                   method = "svmRadialSigma")
+svmrs_predicted <- predict(svmrs_fit, dat_test)
+svmrs_cm <- confusionMatrix(factor(svmrs_predicted),factor(dat_test$DEFAULT))
+
+result_other <- rbind(result_other, with(svmrs_cm, 
+                                         c(Method = "svmRadialSigma",
+                                           Accuracy = overall["Accuracy"],
+                                           Balanced = byClass["Balanced Accuracy"],
+                                           Sensitivity = byClass["Sensitivity"],
+                                           Specificity = byClass["Specificity"],
+                                           F1 = byClass["F1"])))
+result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
 
 ```

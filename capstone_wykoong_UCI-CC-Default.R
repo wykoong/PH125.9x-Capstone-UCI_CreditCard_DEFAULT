@@ -27,6 +27,16 @@
 #    
 ############################# . #############################
 
+if(!require(tidyverse))   install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret))       install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table))  install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(formattable)) install.packages("formattable", repos = "http://cran.us.r-project.org")
+if(!require(corrplot))    install.packages("corrplot", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(stringr))     install.packages("stringr", repos = "http://cran.us.r-project.org")
+if(!require(xgboost))     install.packages("xgboost", repos = "http://cran.us.r-project.org")
+if(!require(gam))         install.packages("gam", repos = "http://cran.us.r-project.org")
+
 
 library(tidyverse)
 library(caret)
@@ -36,12 +46,18 @@ library(corrplot)
 library(randomForest)
 library(stringr)
 library(xgboost)
+library(gam)
 
 ############################# . #############################
 #    OBTAIN DATA
 #    Data is downloaded from Kaggle.com, following is the URL:
 #      https://www.kaggle.com/uciml/default-of-credit-card-clients-dataset
 ############################# . #############################
+
+sink(paste0("modeling-full-",format(Sys.Date(),"%Y%m%d"),".log"), 
+     append=FALSE, split=TRUE)
+Sys.time()
+
 
 dat_raw <- read.csv("https://raw.githubusercontent.com/wykoong/PH125.9x-Capstone-UCI_CreditCard_DEFAULT/master/data/UCI_Credit_Card.csv")
 dat_raw_original <- dat_raw         # Keep a copy of original data for comparison
@@ -170,6 +186,7 @@ matrix(c(VARIABLE=c("ID", "LIMIT_BAL","SEX","EDUCATION","MARRIAGE","AGE",
 #    SCRUB DATA
 #    
 ############################# . #############################
+Sys.time()
 
 #---------------------------- . ----------------------------#
 #    NA ANALYSIS  
@@ -449,11 +466,13 @@ names(dat_raw)
 #    DATA EXPLORATION
 #                 
 ############################# . #############################
+Sys.time()
 
 #---------------------------- . ----------------------------#
 #    DEFAULT
 #    - OVERALL CHART
 #---------------------------- . ----------------------------#
+
 names(dat_raw)
 dat_raw %>% select(DEF_text,SEX_text, EDU_text,MAR_text) %>% gather(CATEGORY,VALUE,-DEF_text) %>%
   mutate(CATEGORY = case_when(
@@ -740,6 +759,7 @@ rm(dat_payon,dat_payon_sum)
 #    PREPARE TRAINING & TEST DATA SET
 #                 80% : 20%
 ############################# . #############################
+Sys.time()
 
 set.seed(1, sample.kind = "Rounding")
 tmp_idx_test <- createDataPartition(dat_raw$DEFAULT,
@@ -765,6 +785,7 @@ rm(dat_raw,dat_raw_original,dat_raw_sweep,tmp_cor)
 #    PERFORM MODELING
 #                 
 ############################# . #############################
+Sys.time()
 
 dat_train_simple <- dat_train %>% 
   select(DEFAULT, LIMIT_BAL, SEX, EDUCATION, MARRIAGE, AGE_FAC, PAYDUE, 
@@ -902,10 +923,6 @@ f_printCM(knn_cm$table)
 #---------------------------- . ----------------------------#
 #    MODELING USING K-Means Clustering
 #---------------------------- . ----------------------------#
-
-result <- rbind(result,  c(Method = "K-Means", Accuracy = 0.241959673387769, Balanced = 0.505182456769084,
-                           Sensitivity = 0.0329552749839504, Specificity = 0.977409638554217, F1 = 0.0634136298126416))
-
 set.seed(1, sample.kind = "Rounding")
 f_predictkmeans <- function(x, k) {
   centers <- k$centers    # extract cluster centers
@@ -1085,6 +1102,7 @@ xgb.importance(model=xg_fit)%>% as.data.frame() %>%
 #    Intepreting Result
 #    
 ############################# . #############################
+Sys.time()
 
 result <- as.matrix(result)
 result <- result[-1,]
@@ -1149,17 +1167,21 @@ result_more %>% as.data.frame() %>%
 
 tmp_result_compare <- cbind(result[,1],matrix(as.numeric(result_more[,2:6])-as.numeric(result[,2:6]),7,5))
 colnames(tmp_result_compare) <- colnames(result)
-tmp_result_compare %>% as.data.frame() %>% 
+rownames(tmp_result_compare) <- result[,1]
+tmp_result_compare <- tmp_result_compare %>% 
+  as.data.frame() %>% 
   mutate(DiffAccuracy       =round(as.numeric(Accuracy),4)) %>%
   mutate(DiffBalanced       =round(as.numeric(Balanced),4)) %>%
   mutate(DiffSensitivity    =round(as.numeric(Sensitivity),4)) %>%
   mutate(DiffSpecificity    =round(as.numeric(Specificity),4)) %>%
-  mutate(DiffF1             =round(as.numeric(F1),4)) %>%
+  mutate(DiffF1             =round(as.numeric(F1),4)) %>% 
   mutate(Accuracy           =round(as.numeric(result_more[,2]),4)) %>%
   mutate(Balanced           =round(as.numeric(result_more[,3]),4)) %>%
   mutate(Sensitivity        =round(as.numeric(result_more[,4]),4)) %>%
   mutate(Specificity        =round(as.numeric(result_more[,5]),4)) %>%
-  mutate(F1                 =round(as.numeric(result_more[,6]),4)) %>% t() %>%
+  mutate(F1                 =round(as.numeric(result_more[,6]),4)) %>% t() 
+colnames(tmp_result_compare) <- tmp_result_compare[1,]
+tmp_result_compare[-1,] %>%
   knitr::kable(caption="COMPARE DATASET PREDICTION RESULT", digits=4, format.args=list(big.mark=","))
 
 
@@ -1190,7 +1212,6 @@ result %>% as.data.frame() %>% gather("Metrix","Value",-Method) %>%
 #---------------------------- . ----------------------------#
 # + Naive_bayes
 # + SVMLinear
-# + GAMBoost
 # + kknn
 # + GAM
 # + Ranger
@@ -1208,15 +1229,24 @@ result %>% as.data.frame() %>% gather("Metrix","Value",-Method) %>%
 # result_other is performed outside of RMARKDOWN as the the modeling processes take more than 4 hours.
 # refer to APPENDIX B, and execute if necessary.
 
-result_other <- f_result(" |Method      |Accuracy          |Balanced          |Sensitivity       |Specificity       |F1                |
-|:-----------|:-----------------|:-----------------|:-----------------|:-----------------|:-----------------|
-|            |0                 |0                 |0                 |0                 |0                 |
-|naive_bayes |0.823529411764706 |0.653025729066491 |0.958912903916114 |0.347138554216867 |0.894321923959685 |
-|svmLinear   |0.623062822862856 |0.58872006321885  |0.650331692702761 |0.52710843373494  |0.728776978417266 |
-|kknn        |0.78770204965839  |0.619240900043573 |0.921463727797988 |0.317018072289157 |0.871130892170747 |
-|gam         |0.823529411764706 |0.650061136908    |0.961266852129253 |0.338855421686747 |0.894553420292741 |
-|ranger      |0.823362772871188 |0.650493156018037 |0.960624866252942 |0.340361445783133 |0.894401275154413 |
-|wsrf        |0.818863522746209 |0.632781258782186 |0.966616734431842 |0.29894578313253  |0.892599545499457 |")
+result_other <- f_result(" |Method        |Accuracy          |Balanced          |Sensitivity       |Specificity       |F1                |
+|:--------------|:-----------------|:-----------------|:-----------------|:-----------------|:-----------------|
+|               |0                 |0                 |0                 |0                 |0                 |
+|naive_bayes    |0.823529411764706 |0.653025729066491 |0.958912903916114 |0.347138554216867 |0.894321923959685 |
+|svmLinear      |0.623062822862856 |0.58872006321885  |0.650331692702761 |0.52710843373494  |0.728776978417266 |
+|kknn           |0.78770204965839  |0.619240900043573 |0.921463727797988 |0.317018072289157 |0.871130892170747 |
+|gam            |0.823529411764706 |0.650061136908    |0.961266852129253 |0.338855421686747 |0.894553420292741 |
+|ranger         |0.823362772871188 |0.650493156018037 |0.960624866252942 |0.340361445783133 |0.894401275154413 |
+|wsrf           |0.818863522746209 |0.632781258782186 |0.966616734431842 |0.29894578313253  |0.892599545499457 |
+|Rborist        |0.823529411764706 |0.653025729066491 |0.958912903916114 |0.347138554216867 |0.894321923959685 |
+|avNNet         |0.825362439593401 |0.653663686416971 |0.96169484271346  |0.345632530120482 |0.89557592666401  |
+|mlp            |0.778703549408432 |0.5               |1                 |0                 |0.875585534944726 |
+|monmlp         |0.824529245125812 |0.653128698186712 |0.960624866252942 |0.345632530120482 |0.895025421194298 |
+|gbm            |0.824195967338777 |0.652106177760475 |0.960838861545046 |0.343373493975904 |0.894867962132536 |
+|adaboost       |0.734210964839193 |0.630441571550486 |0.816606034667237 |0.444277108433735 |0.827137747913732 |
+|svmRadial      |0.778703549408432 |0.5               |1                 |0                 |0.875585534944726 |
+|svmRadialCost  |0.778703549408432 |0.5               |1                 |0                 |0.875585534944726 |
+|svmRadialSigma |0.778703549408432 |0.5               |1                 |0                 |0.875585534944726 |")
 
 rbind(result[which.max(result[,6]),], result_other) %>% 
   as.data.frame() %>% 
@@ -1231,11 +1261,36 @@ rbind(result[which.max(result[,6]),], result_other)[,c(1,6)] %>%
   as.data.frame() %>% mutate(F1=as.numeric(F1)) %>%
   ggplot(aes(Method, F1,col=Method)) + geom_point(aes(shape=Method), size=3) +
   geom_text(aes(label=comma(F1,digits=4)),check_overlap = TRUE, vjust=2) +
-  scale_shape_manual(values = c(15:25)) +
+  scale_shape_manual(values = c(2:25)) +
   theme_minimal() +
   ggtitle("OTHER ALGORITHM EVALUATION") + 
-  theme(plot.title = element_text(hjust = 0.5),legend.position = "na")
+  theme(plot.title = element_text(hjust = 0.5),legend.position = "na",
+        axis.text.x = element_text(angle = 90, hjust = 1))
 
+Sys.time()
+sink()
+
+############################# . ############################# . ############################# . #############################
+############################# . ############################# . ############################# . #############################
+########              ####### . #######               ####### . ########             ######## . ########             ########
+#######   ################### . #############   ############# . #######    #######    ####### . ########              #######
+#######  #################### . #############   ############# . #######   #########   ####### . ########   ########   #######
+#######   ################### . #############   ############# . #######   #########   ####### . ########   ########   #######
+########             ######## . #############   ############# . #######   #########   ####### . ########              #######
+###################   ####### . #############   ############# . #######   #########   ####### . ########             ########
+####################  ####### . #############   ############# . #######   #########   ####### . ########   ##################
+###################   ####### . #############   ############# . #######    #######    ####### . ########   ##################
+#######              ######## . #############   ############# . ########             ######## . ########   ##################
+############################# . ############################# . ############################# . ########   ##################
+############################# . ############################# . ############################# . #############################
+
+# FOLLOWING ARE APPENDIX A & APPENDIX B
+# APPENDIX A TAKES APPROXIMATE 1 HOUR FOR FULL EXECUTION
+# APPENDIX B TAKES 12 HOURS FOR FULL EXECUTION
+# 
+# BOTH APPENDIX A AND APPENDIX B RESULTS ARE INCLUDED IN THE ABOVE MAIN PROGRAM.
+# RUN THE FULL CODES BELOW IF YOU NEEDED.
+# THE FULL CODES ARE FULLY TESTED
 
 ############################# . #############################
 #
@@ -1249,6 +1304,7 @@ rbind(result[which.max(result[,6]),], result_other)[,c(1,6)] %>%
 
 sink(paste0("modeling-dat_train_more-",format(Sys.Date(),"%Y%m%d"),".log"), 
      append=FALSE, split=TRUE)
+Sys.Date()
 
 nzv <- nearZeroVar(dat_train)
 dat_train_more <- dat_train %>% 
@@ -1504,7 +1560,6 @@ result_more %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
 #    CONSOLIDATE PREDICTED RESULT 
 #---------------------------- . ----------------------------#
 result_more %>% knitr::kable(caption="PREDICTION RESULT", digits=4, format.args=list(big.mark=","))
-sink()
 
 
 
@@ -1549,10 +1604,9 @@ names(dat_train_simple)
 ############################# . #############################
 #    MODELING USING OTHER APPROACH
 #    - USE DEFAULT PARAMETER
-#    - "naive_bayes", "svmLinear", "gamboost", "kknn", "loclda", "gam", 
+#    - "naive_bayes", "svmLinear",  "kknn", "loclda", "gam", 
 #      "ranger","wsrf", "Rborist", "avNNet", "mlp", "monmlp", "gbm",
-#      "adaboost", "svmRadial", "svmRadialCost", "svmRadialSigma",
-#      "repeatedcv"
+#      "adaboost", "svmRadial", "svmRadialCost", "svmRadialSigma"
 ############################# . #############################
 
 
@@ -1590,25 +1644,6 @@ result_other <- rbind(result_other, with(svml_cm,
                                            Specificity = byClass["Specificity"],
                                            F1 = byClass["F1"])))
 result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
-
-
-#---------------------------- . ----------------------------#
-#    PREDICT USING gamboost
-#---------------------------- . ----------------------------#
-gb_fit <- train(data=dat_train_simple, DEFAULT~.,
-                method = "gamboost")
-gb_predicted <- predict(gb_fit, dat_test)
-gb_cm <- confusionMatrix(factor(gb_predicted),factor(dat_test$DEFAULT))
-
-result_other <- rbind(result_other, with(gb_cm, 
-                                         c(Method = "gamboost",
-                                           Accuracy = overall["Accuracy"],
-                                           Balanced = byClass["Balanced Accuracy"],
-                                           Sensitivity = byClass["Sensitivity"],
-                                           Specificity = byClass["Specificity"],
-                                           F1 = byClass["F1"])))
-result_other %>% knitr::kable(caption="PREDICTION RESULT", digits=4)
-
 
 #---------------------------- . ----------------------------#
 #    PREDICT USING kknn
